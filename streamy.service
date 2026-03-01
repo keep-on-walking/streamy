@@ -1,0 +1,21 @@
+[Unit]
+Description=Streamy Music Player
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/opt/streamy
+ExecStart=/usr/bin/node /opt/streamy/src/server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=streamy
+
+# Environment
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target
