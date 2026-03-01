@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Streamy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:         #13131e;
+  --bg-card:    #1c1c2a;
+  --bg-card2:   #222232;
+  --bg-hover:   #28283a;
+  --sidebar-bg: #0f0f19;
+  --border:     rgba(255,255,255,0.07);
+  --accent:     #7c5af0;
+  --accent-s:   rgba(124,90,240,0.18);
+  --accent-g:   rgba(124,90,240,0.38);
+  --accent2:    #a78bfa;
+  --green:      #4ade80;
+  --yellow:     #fbbf24;
+  --red:        #f87171;
+  --t1:         #eeeef8;
+  --t2:         rgba(238,238,248,0.5);
+  --t3:         rgba(238,238,248,0.28);
+  --r:          14px;
+  --rsm:        10px;
+  --rxs:        7px;
+  --sw:         252px;
+  --th:         62px;
+  --font:       'Plus Jakarta Sans', sans-serif;
+  --shadow:     0 4px 24px rgba(0,0,0,0.4);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);height:100vh;overflow:hidden;display:flex;user-select:none}
+button{border:none;background:none;cursor:pointer;font-family:inherit}
+input{font-family:inherit;border:none;outline:none;background:none}
+img{display:block}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
+
+/* ── Layout ─────────────────── */
+#app{display:flex;width:100%;height:100%}
+
+/* ── Sidebar ─────────────────── */
+#sidebar{
+  width:var(--sw);background:var(--sidebar-bg);
+  display:flex;flex-direction:column;flex-shrink:0;
+  border-right:1px solid var(--border);
+  transition:width .24s cubic-bezier(.4,0,.2,1),transform .24s cubic-bezier(.4,0,.2,1);
+  overflow:hidden;z-index:50;
+}
+#sidebar.collapsed{width:0;transform:translateX(-100%)}
+
+.sb-logo{display:flex;align-items:center;gap:10px;padding:18px 18px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-logo-mark{width:30px;height:30px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 14px var(--accent-g)}
+.sb-logo-mark svg{width:15px;height:15px}
+.sb-logo-name{font-size:14.5px;font-weight:700;color:var(--t1);letter-spacing:-.2px;white-space:nowrap}
+
+/* Now playing */
+.sb-np{margin:12px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:12px;flex-shrink:0}
+.sb-np-art{width:100%;aspect-ratio:1;border-radius:var(--rsm);overflow:hidden;background:var(--bg-card2);margin-bottom:10px;position:relative}
+.sb-np-art img{width:100%;height:100%;object-fit:cover}
+.sb-np-empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:34px;opacity:.18}
+.sb-np-title{font-size:12.5px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.sb-np-artist{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:9px}
+.sb-prog{height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;cursor:pointer;margin-bottom:4px}
+.sb-prog-fill{height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width .5s linear}
+.sb-prog-times{display:flex;justify-content:space-between;font-size:9.5px;color:var(--t3);margin-bottom:10px}
+.sb-ctrls{display:flex;align-items:center;justify-content:space-between}
+.sb-ctrl{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--t2);transition:background .15s,color .15s}
+.sb-ctrl:hover,.sb-ctrl.on{background:rgba(255,255,255,0.07);color:var(--t1)}
+.sb-ctrl.on{color:var(--accent2)}
+.sb-ctrl-play{width:42px;height:42px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 0 14px var(--accent-g);transition:transform .13s,box-shadow .18s}
+.sb-ctrl-play:hover{transform:scale(1.08)}
+.sb-ctrl-play:active{transform:scale(0.94)}
+
+/* Nav */
+.sb-nav{flex:1;overflow-y:auto;padding:10px 8px 6px}
+.sb-sec{font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:1.2px;text-transform:uppercase;padding:10px 10px 4px}
+.sb-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:var(--rsm);color:var(--t2);font-size:13px;font-weight:500;cursor:pointer;transition:background .14s,color .14s;white-space:nowrap}
+.sb-item:hover{background:var(--bg-hover);color:var(--t1)}
+.sb-item.active{background:var(--accent-s);color:var(--accent2)}
+.sb-item svg{flex-shrink:0}
+.sb-badge{margin-left:auto;background:rgba(255,255,255,0.07);border-radius:20px;padding:1px 7px;font-size:10px;color:var(--t3)}
+
+/* Volume — hidden from sidebar, lives in Settings only */
+.sb-vol{display:none}
+.sb-vol-sl{flex:1;-webkit-appearance:none;height:3px;border-radius:2px;background:rgba(255,255,255,0.09);outline:none;cursor:pointer}
+.sb-vol-sl::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent2);box-shadow:0 0 6px var(--accent-g);cursor:pointer}
+
+.sb-user{display:flex;align-items:center;gap:9px;padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0}
+.sb-user-av{width:28px;height:28px;border-radius:50%;background:var(--accent-s);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--accent2);flex-shrink:0}
+.sb-user-name{font-size:12px;font-weight:500;color:var(--t2);white-space:nowrap}
+
+/* ── Main ─────────────────────── */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ── Topbar ──────────────────── */
+#topbar{height:var(--th);background:var(--sidebar-bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0}
+#sb-tog{width:32px;height:32px;border-radius:var(--rxs);display:flex;align-items:center;justify-content:center;color:var(--t2);transition:background .14s;flex-shrink:0}
+#sb-tog:hover{background:var(--bg-hover);color:var(--t1)}
+
+.tb-search{display:flex;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--rsm);height:38px;width:320px;flex-shrink:0;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.tb-search:focus-within{border-color:rgba(124,90,240,.4);box-shadow:0 0 0 3px rgba(124,90,240,.1)}
+.tb-si{width:38px;display:flex;align-items:center;justify-content:center;color:var(--t3);flex-shrink:0}
+#search-input{flex:1;font-size:12.5px;color:var(--t1);padding:0 4px}
+#search-input::placeholder{color:var(--t3)}
+#search-btn{background:var(--accent);padding:0 14px;font-size:12.5px;font-weight:600;color:#fff;border-radius:0 var(--rsm) var(--rsm) 0;flex-shrink:0;transition:background .14s}
+#search-btn:hover{background:#6b4de0}
+
+.tb-tabs{display:flex;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--rsm);padding:3px;gap:2px;flex-shrink:0}
+.tb-tabs button{padding:5px 13px;border-radius:var(--rxs);font-size:12px;font-weight:500;color:var(--t2);transition:background .14s,color .14s}
+.tb-tabs button.active{background:var(--accent);color:#fff;box-shadow:0 0 10px var(--accent-g)}
+
+.tb-sp{flex:1}
+.tb-icons{display:flex;align-items:center;gap:3px}
+.tb-ico{width:34px;height:34px;border-radius:var(--rxs);display:flex;align-items:center;justify-content:center;color:var(--t2);transition:background .14s,color .14s;position:relative}
+.tb-ico:hover{background:var(--bg-hover);color:var(--t1)}
+.tb-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--accent);border:1.5px solid var(--sidebar-bg)}
+#q-badge{position:absolute;top:3px;right:3px;min-width:15px;height:15px;border-radius:8px;background:var(--accent);color:#fff;font-size:8.5px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 2px}
+
+/* ── Content ─────────────────── */
+#content{flex:1;overflow:hidden;position:relative;background:var(--bg)}
+.panel{position:absolute;inset:0;overflow-y:auto;padding:22px 24px;opacity:0;pointer-events:none;transform:translateY(5px);transition:opacity .18s ease,transform .18s ease}
+.panel.active{opacity:1;pointer-events:all;transform:none}
+
+/* Page header */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px}
+.ph-title{font-size:20px;font-weight:700;color:var(--t1);letter-spacing:-.3px}
+.ph-sub{font-size:12px;color:var(--t3);margin-top:3px}
+.ph-right{display:flex;gap:8px;align-items:center}
+.pbtn{display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--rxs);font-size:12px;font-weight:500;color:var(--t2);transition:background .14s,color .14s;cursor:pointer}
+.pbtn:hover{background:var(--bg-hover);color:var(--t1)}
+.pbtn.accent{background:var(--accent);border-color:transparent;color:#fff;box-shadow:0 0 12px var(--accent-g)}
+.pbtn.accent:hover{background:#6b4de0}
+
+/* Stat cards */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:18px}
+.sc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px}
+.sc-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sc-lbl{font-size:11.5px;color:var(--t2);font-weight:500}
+.sc-more{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--t3);transition:background .14s;letter-spacing:1px;font-size:13px}
+.sc-more:hover{background:var(--bg-hover)}
+.sc-val{font-size:26px;font-weight:800;color:var(--t1);letter-spacing:-1px;margin-bottom:5px;line-height:1}
+.sc-trend{display:flex;align-items:center;gap:4px;font-size:11px}
+.trend-up{color:var(--green)}
+.trend-n{color:var(--t3)}
+
+/* Charts */
+.charts-row{display:grid;grid-template-columns:1fr 400px;gap:13px;margin-bottom:18px}
+.cc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.cc-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.cc-title{font-size:14px;font-weight:700;color:var(--t1)}
+
+/* Bar chart */
+.bar-chart{display:flex;align-items:flex-end;gap:9px;height:130px;padding-bottom:2px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center}
+.bar-fill{width:100%;background:rgba(124,90,240,.18);border-radius:5px 5px 0 0;border:1px solid rgba(124,90,240,.22);position:relative;overflow:hidden;cursor:pointer;transition:background .14s;min-height:4px}
+.bar-fill.today,
+.bar-fill:hover{background:rgba(124,90,240,.35)}
+.bar-fill.today{border-color:var(--accent)}
+.bar-labels{display:flex;margin-top:8px}
+.bar-labels span{flex:1;text-align:center;font-size:10px;color:var(--t3)}
+
+/* Donut */
+.donut-sec{display:flex;gap:18px;align-items:center}
+.donut-wrap{position:relative;width:120px;height:120px;flex-shrink:0}
+.donut-svg{width:100%;height:100%;transform:rotate(-90deg)}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.donut-num{font-size:18px;font-weight:800;color:var(--t1);line-height:1;letter-spacing:-.5px}
+.donut-lbl{font-size:9px;color:var(--t3);margin-top:2px}
+.donut-legend{display:flex;flex-direction:column;gap:10px;flex:1}
+.leg-item{display:flex;align-items:center;gap:7px}
+.leg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.leg-label{font-size:11.5px;color:var(--t2)}
+.leg-val{font-size:15px;font-weight:700;color:var(--t1);line-height:1;margin-top:1px}
+.view-btn{display:flex;align-items:center;justify-content:center;width:100%;height:38px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--rxs);font-size:12.5px;font-weight:500;color:var(--t2);margin-top:14px;cursor:pointer;transition:background .14s,color .14s}
+.view-btn:hover{background:var(--bg-hover);color:var(--t1)}
+
+/* Track table */
+.tbl-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:18px}
+.tbl-hd{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--border)}
+.tbl-title{font-size:14px;font-weight:700;color:var(--t1)}
+.tbl-filter{display:flex;align-items:center;gap:5px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--rxs);padding:5px 10px;font-size:11.5px;color:var(--t2);cursor:pointer}
+.col-hds{display:grid;padding:9px 18px;border-bottom:1px solid var(--border)}
+.col-hd{font-size:10.5px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.tr{display:grid;padding:10px 18px;border-bottom:1px solid rgba(255,255,255,0.03);align-items:center;cursor:pointer;transition:background .13s;position:relative}
+.tr::before{content:'';position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);transition:width .17s;border-radius:0 2px 2px 0}
+.tr.playing::before{width:3px}
+.tr:hover{background:var(--bg-hover)}
+.tr:last-child{border-bottom:none}
+.tr-num{font-size:11.5px;color:var(--t3)}
+.tr.playing .tr-num{color:var(--accent2)}
+.tr-info{display:flex;align-items:center;gap:9px;min-width:0}
+.tr-art{width:36px;height:36px;border-radius:7px;overflow:hidden;background:var(--bg-card2);flex-shrink:0}
+.tr-art img{width:100%;height:100%;object-fit:cover}
+.tr-title{font-size:12.5px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-artist{font-size:11px;color:var(--t2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-cell{font-size:12px;color:var(--t2)}
+.tr-dur{font-size:11.5px;color:var(--t3);font-variant-numeric:tabular-nums}
+.tr-acts{display:flex;gap:2px;opacity:0;transition:opacity .13s}
+.tr:hover .tr-acts{opacity:1}
+.tr-act{width:28px;height:28px;border-radius:var(--rxs);display:flex;align-items:center;justify-content:center;color:var(--t2);transition:background .13s,color .13s}
+.tr-act:hover{background:rgba(255,255,255,0.07);color:var(--t1)}
+.tr-act.del:hover{background:rgba(248,113,113,.1);color:var(--red)}
+
+/* Playing bars */
+.pbars{display:flex;align-items:flex-end;gap:2px;height:13px}
+.pbars span{display:block;width:2.5px;background:var(--accent);border-radius:2px;animation:pb .7s ease infinite alternate}
+.pbars span:nth-child(1){height:6px;animation-delay:0s}
+.pbars span:nth-child(2){height:11px;animation-delay:.17s}
+.pbars span:nth-child(3){height:7px;animation-delay:.34s}
+@keyframes pb{to{height:3px}}
+
+/* Search results grid */
+.res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:11px}
+.rc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:border-color .14s,transform .14s,box-shadow .14s}
+.rc:hover{border-color:rgba(124,90,240,.35);transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.rc:active{transform:scale(.98)}
+.rc-art{aspect-ratio:1;overflow:hidden;background:var(--bg-card2);position:relative}
+.rc-art img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.rc:hover .rc-art img{transform:scale(1.05)}
+.rc-ov{position:absolute;inset:0;background:rgba(0,0,0,0);display:flex;align-items:center;justify-content:center;gap:7px;transition:background .18s}
+.rc:hover .rc-ov{background:rgba(0,0,0,.55)}
+.ov-b{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.6);transition:opacity .17s,transform .17s}
+.rc:hover .ov-b{opacity:1;transform:scale(1)}
+.ov-b.p{background:var(--accent);color:#fff;box-shadow:0 2px 10px var(--accent-g)}
+.ov-b.p:hover{transform:scale(1.1)!important}
+.ov-b.s{background:rgba(255,255,255,.9);color:#111}
+.rc-info{padding:10px 12px 12px}
+.rc-title{font-size:12.5px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.rc-meta{display:flex;align-items:center;justify-content:space-between}
+.rc-artist{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%}
+.rc-dur{font-size:10px;color:var(--t3);flex-shrink:0}
+.rc-btns{display:flex;gap:6px;padding:0 9px 10px}
+.rb{flex:1;height:36px;border-radius:var(--rxs);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px;transition:background .13s,transform .1s}
+.rb:active{transform:scale(.97)}
+.rb.q{background:var(--accent);color:#fff;box-shadow:0 0 9px var(--accent-g)}
+.rb.q:hover{background:#6b4de0}
+.rb.pn{background:var(--bg-card2);color:var(--t2);border:1px solid var(--border)}
+.rb.pn:hover{background:var(--bg-hover);color:var(--t1)}
+
+/* Mood chips */
+.moods{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px}
+.mc{padding:7px 15px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--rxs);font-size:12.5px;font-weight:500;color:var(--t2);cursor:pointer;transition:all .14s}
+.mc:hover{border-color:rgba(124,90,240,.4);color:var(--accent2);background:var(--accent-s)}
+
+/* Queue empty */
+.qe{text-align:center;padding:70px 20px;color:var(--t3)}
+.qe-ico{font-size:40px;opacity:.35;margin-bottom:10px}
+.qe-txt{font-size:13.5px;font-weight:500;color:var(--t2)}
+.qe-sub{font-size:12px;margin-top:5px}
+
+/* Lyrics */
+.ly-wrap{max-width:540px;margin:0 auto}
+.ly-hd{text-align:center;margin-bottom:24px}
+.ly-title{font-size:17px;font-weight:700;color:var(--t1)}
+.ly-artist{font-size:12.5px;color:var(--t2);margin-top:3px}
+.ly-body{white-space:pre-line;line-height:2.2;font-size:14.5px;color:var(--t2)}
+.ly-body .al{color:var(--t1);font-size:16px;font-weight:600;transition:all .3s}
+.ly-no,.ly-load{text-align:center;padding:70px 20px;color:var(--t3)}
+.ly-spin{width:30px;height:30px;border:2.5px solid rgba(255,255,255,.06);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Skeleton */
+.skel{background:linear-gradient(90deg,var(--bg-card) 25%,var(--bg-card2) 50%,var(--bg-card) 75%);background-size:200% 100%;animation:sh 1.5s infinite;border-radius:var(--r)}
+@keyframes sh{to{background-position:-200% 0}}
+.skel-c{border-radius:var(--r);aspect-ratio:1.05}
+
+/* Toast */
+#toast-a{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toast{background:var(--bg-card);border:1px solid var(--border);color:var(--t1);padding:10px 16px;border-radius:50px;font-size:12.5px;font-weight:500;box-shadow:var(--shadow);display:flex;align-items:center;gap:7px;animation:tI .26s cubic-bezier(.34,1.56,.64,1) both}
+.toast.exit{animation:tO .2s ease both}
+.td{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.toast.success .td{background:var(--green)}
+.toast.info .td{background:var(--accent)}
+@keyframes tI{from{opacity:0;transform:translateY(9px) scale(.94)}}
+@keyframes tO{to{opacity:0;transform:translateY(5px) scale(.97)}}
+
+/* Drag */
+.tr.drag-over{background:var(--accent-s);border-color:rgba(124,90,240,.3)}
+
+/* ── Settings ─────────────────── */
+.set-section { margin-bottom: 20px; }
+.set-section-title { font-size: 11px; font-weight: 700; color: var(--t3); letter-spacing: 1.1px; text-transform: uppercase; margin-bottom: 10px; }
+.set-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 13px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); gap: 16px; }
+.set-row:last-child { border-bottom: none; }
+.set-row-label { font-size: 13px; font-weight: 600; color: var(--t1); }
+.set-row-sub { font-size: 11.5px; color: var(--t3); margin-top: 2px; }
+.set-row-right { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.yt-connected { display: flex; align-items: center; gap: 10px; padding: 12px 18px; }
+.yt-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,#ff0000,#cc0000); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.yt-name { font-size: 13px; font-weight: 600; color: var(--t1); }
+.yt-meta { font-size: 11.5px; color: var(--t3); margin-top: 2px; }
+.browser-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 9px; padding: 14px; }
+.browser-btn { background: var(--bg-card2); border: 1.5px solid var(--border); border-radius: var(--rsm); padding: 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
+.browser-btn:hover { border-color: rgba(124,90,240,.4); background: var(--accent-s); }
+.browser-btn.loading { opacity: .6; pointer-events: none; }
+.browser-icon { font-size: 28px; }
+.browser-name { font-size: 12px; font-weight: 600; color: var(--t1); }
+.browser-ver { font-size: 10px; color: var(--t3); text-align: center; }
+.browser-unavail { opacity: .35; cursor: not-allowed; }
+.browser-unavail:hover { border-color: var(--border); background: var(--bg-card2); }
+.cookie-upload-zone { border: 1.5px dashed rgba(255,255,255,.12); border-radius: var(--rsm); padding: 28px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; margin: 14px; }
+.cookie-upload-zone:hover { border-color: rgba(124,90,240,.4); background: var(--accent-s); }
+.cookie-upload-zone.drag { border-color: var(--accent); background: var(--accent-s); }
+.method-tabs { display: flex; border-bottom: 1px solid var(--border); }
+.method-tab { flex: 1; padding: 12px 16px; font-size: 13px; font-weight: 500; color: var(--t2); cursor: pointer; transition: color .14s, background .14s; text-align: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.method-tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+.method-tab:hover:not(.active) { color: var(--t1); background: var(--bg-hover); }
+.method-pane { display: none; }
+.method-pane.active { display: block; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 50px; font-size: 11.5px; font-weight: 600; }
+.status-pill.connected { background: rgba(74,222,128,.15); color: var(--green); }
+.status-pill.disconnected { background: rgba(255,255,255,.06); color: var(--t3); }
+.info-box { background: rgba(124,90,240,.1); border: 1px solid rgba(124,90,240,.2); border-radius: var(--rsm); padding: 12px 14px; margin: 12px 14px; font-size: 12px; color: var(--t2); line-height: 1.6; }
+.info-box a { color: var(--accent2); }
+.spin-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.1); border-top-color: var(--accent2); border-radius: 50%; animation: spin .6s linear infinite; }
+
+/* On touch devices, always show the overlay and action buttons */
+@media (hover: none) {
+  .rc-ov{background:rgba(0,0,0,.45) !important}
+  .ov-b{opacity:1 !important;transform:scale(1) !important}
+  .tr-acts{opacity:1 !important}
+}
+@media(max-width:900px){
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .charts-row{grid-template-columns:1fr}
+}
+
+/* ── Mobile (portrait phone) ───── */
+#bottom-nav{display:none}
+#mobile-search-bar{display:none}
+
+@media(max-width:660px){
+  html{font-size:18px}
+  :root{--sw:88vw;--th:62px}
+
+  /* Sidebar = full-screen drawer, hidden by default */
+  #sidebar{position:fixed;inset:0 auto 0 0;z-index:200;transform:translateX(-100%);transition:transform .26s cubic-bezier(.4,0,.2,1);width:var(--sw) !important}
+  #sidebar.open{transform:translateX(0)}
+  #sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199;opacity:0;pointer-events:none;transition:opacity .26s}
+  #sidebar-overlay.show{opacity:1;pointer-events:all}
+
+  /* Topbar: hamburger + logo + search + queue + settings */
+  #topbar{padding:0 12px;gap:8px}
+  .tb-search{display:none}   /* top search bar hidden — we use inline in panel */
+  .tb-tabs{display:none}
+  .tb-sp{flex:1}
+  .tb-ico{display:none !important}
+  #btn-queue-tb{display:flex !important}
+  #btn-settings-tb{display:flex !important}
+  #tb-logo{display:flex !important}
+
+  /* Push content up from bottom nav */
+  #main{padding-bottom:66px}
+  .panel{padding:14px 14px 24px}
+
+  /* Mobile now-playing strip */
+  #mobile-np{display:flex}
+
+  /* Mobile inline search bar (shown at top of search panel) */
+  #mobile-search-bar{
+    display:flex;
+    background:var(--bg-card);border:1px solid var(--border);
+    border-radius:var(--rsm);height:46px;margin-bottom:14px;overflow:hidden;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  #mobile-search-bar:focus-within{border-color:rgba(124,90,240,.4);box-shadow:0 0 0 3px rgba(124,90,240,.1)}
+  #mobile-search-input{flex:1;font-size:15px;color:var(--t1);padding:0 14px}
+  #mobile-search-input::placeholder{color:var(--t3)}
+  #mobile-search-btn{background:var(--accent);padding:0 18px;font-size:14px;font-weight:600;color:#fff}
+
+  /* Bottom navigation bar */
+  #bottom-nav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;
+    height:66px;background:var(--sidebar-bg);
+    border-top:1px solid var(--border);z-index:100;
+    align-items:stretch;padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .bn-item{
+    flex:1;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:4px;color:var(--t2);font-size:11px;
+    font-weight:600;cursor:pointer;transition:color .14s;position:relative;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .bn-item.active{color:var(--accent2)}
+  .bn-item svg{flex-shrink:0}
+  .bn-badge{position:absolute;top:8px;right:calc(50% - 20px);min-width:16px;height:16px;
+    border-radius:8px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;
+    display:none;align-items:center;justify-content:center;padding:0 3px}
+
+  .stats-row{grid-template-columns:1fr 1fr}
+  .charts-row{grid-template-columns:1fr}
+  .tr{min-height:54px}
+  .ph-title{font-size:18px}
+  .sc-val{font-size:22px}
+  .sb-np-title{font-size:13.5px}
+  .sb-item{font-size:14px;padding:11px 11px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ══════════════ SIDEBAR ══════════════ -->
+<aside id="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+      </svg>
+    </div>
+    <span class="sb-logo-name">Streamy</span>
+  </div>
+
+  <div class="sb-np">
+    <div class="sb-np-art" id="np-art">
+      <div class="sb-np-empty" id="np-empty">♫</div>
+      <img id="np-thumb" style="display:none" alt="" />
+    </div>
+    <div class="sb-np-title" id="np-title">No song playing</div>
+    <div class="sb-np-artist" id="np-artist">Search and add songs below</div>
+    <div class="sb-prog" id="prog-track"><div class="sb-prog-fill" id="prog-fill"></div></div>
+    <div class="sb-prog-times"><span id="t-cur">0:00</span><span id="t-tot">0:00</span></div>
+    <div class="sb-ctrls">
+      <button class="sb-ctrl" id="btn-shuffle" onclick="toggleShuffle()" title="Shuffle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+      </button>
+      <button class="sb-ctrl" onclick="skipPrev()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+      </button>
+      <button class="sb-ctrl-play" id="btn-play" onclick="togglePlay()">
+        <svg id="ico-play" width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="ico-pause" style="display:none" width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
+      </button>
+      <button class="sb-ctrl" onclick="skipNext()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2.5-6 5.5 4V8l-5.5 4zM16 6h2v12h-2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="sb-sec">Main Menu</div>
+    <div class="sb-item active" onclick="showPanel('home')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Dashboard
+    </div>
+    <div class="sb-item" onclick="showPanel('search')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search
+    </div>
+    <div class="sb-item" onclick="showPanel('queue')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Queue
+      <span class="sb-badge" id="qnc">0</span>
+    </div>
+    <div class="sb-item" onclick="showPanel('liked')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>Liked Songs
+    </div>
+    <div class="sb-sec">Playback</div>
+    <div class="sb-item" onclick="showPanel('lyrics')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Lyrics
+    </div>
+    <div class="sb-item" onclick="showPanel('rtsp')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>Display Stream
+      <span class="sb-badge" id="rtsp-dot" style="background:var(--t3);width:8px;height:8px;border-radius:50%;padding:0;margin-left:auto"></span>
+    </div>
+    <div class="sb-sec">Settings</div>
+    <div class="sb-item" onclick="showPanel('settings')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings
+    </div>
+    <div class="sb-item" onclick="toast('Help coming soon','info')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Help &amp; Support
+    </div>
+  </nav>
+
+  <div class="sb-user">
+    <div class="sb-user-av">S</div>
+    <span class="sb-user-name">Streamy User</span>
+  </div>
+</aside>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<main id="main">
+  <header id="topbar">
+    <button id="sb-tog" onclick="toggleSidebar()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <div class="tb-search">
+      <div class="tb-si">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <input id="search-input" type="text" placeholder="Search something…" autocomplete="off" onkeydown="if(event.key==='Enter')doSearch()" />
+      <button id="search-btn" onclick="doSearch()">Search</button>
+    </div>
+
+    <div class="tb-tabs" id="type-tabs">
+      <button class="active" onclick="setType('songs',this)">Songs</button>
+      <button onclick="setType('playlists',this)">Playlists</button>
+      <button onclick="setType('artists',this)">Artists</button>
+    </div>
+
+    <div class="tb-sp"></div>
+
+    <div class="tb-icons">
+      <button class="tb-ico" id="btn-settings-tb" title="Settings" onclick="showPanel('settings')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="tb-ico" id="btn-queue-tb" title="Queue" onclick="showPanel('queue')" style="margin-left:4px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span id="q-badge"></span>
+      </button>
+    </div>
+  </header>
+
+  <div id="content">
+
+    <!-- DASHBOARD -->
+    <div class="panel active" id="panel-home">
+      <div class="ph">
+        <div>
+          <div class="ph-title">Dashboard</div>
+          <div class="ph-sub" id="home-sub">Here is today's playback and performance</div>
+        </div>
+        <div class="ph-right">
+          <button class="pbtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Monthly
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <button class="pbtn accent" onclick="showPanel('search')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Music
+          </button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="sc">
+          <div class="sc-hd"><span class="sc-lbl">Songs Played</span><button class="sc-more">···</button></div>
+          <div class="sc-val" id="st-played">0</div>
+          <div class="sc-trend trend-up">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            <span id="st-played-s">0 this session</span>
+          </div>
+        </div>
+        <div class="sc">
+          <div class="sc-hd"><span class="sc-lbl">Queue Length</span><button class="sc-more">···</button></div>
+          <div class="sc-val" id="st-queue">0</div>
+          <div class="sc-trend trend-n">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Songs waiting</span>
+          </div>
+        </div>
+        <div class="sc">
+          <div class="sc-hd"><span class="sc-lbl">Liked Songs</span><button class="sc-more">···</button></div>
+          <div class="sc-val" id="st-liked">0</div>
+          <div class="sc-trend trend-up">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            <span>In your library</span>
+          </div>
+        </div>
+        <div class="sc">
+          <div class="sc-hd"><span class="sc-lbl">Listening Time</span><button class="sc-more">···</button></div>
+          <div class="sc-val" id="st-time">0m</div>
+          <div class="sc-trend trend-up">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            <span>This session</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="cc">
+          <div class="cc-hd">
+            <div class="cc-title">Playback Activity</div>
+            <button class="pbtn" style="font-size:11px;padding:4px 11px">Weekly <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          </div>
+          <div class="bar-chart" id="bar-chart"></div>
+          <div class="bar-labels">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+        </div>
+        <div class="cc">
+          <div class="cc-hd">
+            <div class="cc-title">Queue Status</div>
+            <button class="pbtn" style="font-size:11px;padding:4px 11px">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Today
+            </button>
+          </div>
+          <div class="donut-sec">
+            <div class="donut-wrap">
+              <svg class="donut-svg" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="3"/>
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#7c5af0" stroke-width="3" stroke-dasharray="60 40" stroke-dashoffset="0" id="d-arc1"/>
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#a78bfa" stroke-width="3" stroke-dasharray="25 75" stroke-dashoffset="-60" id="d-arc2"/>
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#4ade80" stroke-width="3" stroke-dasharray="10 90" stroke-dashoffset="-85" id="d-arc3"/>
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#fbbf24" stroke-width="3" stroke-dasharray="5 95" stroke-dashoffset="-95" id="d-arc4"/>
+              </svg>
+              <div class="donut-center">
+                <div class="donut-num" id="d-num">0</div>
+                <div class="donut-lbl">In Queue</div>
+              </div>
+            </div>
+            <div class="donut-legend">
+              <div class="leg-item"><div class="leg-dot" style="background:#7c5af0"></div><div><div class="leg-label">Queued</div><div class="leg-val" id="leg-q">0</div></div></div>
+              <div class="leg-item"><div class="leg-dot" style="background:#a78bfa"></div><div><div class="leg-label">Played</div><div class="leg-val" id="leg-p">0</div></div></div>
+              <div class="leg-item"><div class="leg-dot" style="background:#4ade80"></div><div><div class="leg-label">Liked</div><div class="leg-val" id="leg-l">0</div></div></div>
+            </div>
+          </div>
+          <button class="view-btn" onclick="showPanel('queue')">View Full Queue</button>
+        </div>
+      </div>
+
+      <div class="tbl-card">
+        <div class="tbl-hd">
+          <div class="tbl-title">Quick Picks</div>
+          <div class="tbl-filter">All songs <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+        </div>
+        <div class="col-hds" style="grid-template-columns:38px 1fr 170px 90px 80px">
+          <span class="col-hd">#</span><span class="col-hd">Song</span><span class="col-hd">Artist</span><span class="col-hd">Duration</span><span class="col-hd">Action</span>
+        </div>
+        <div id="home-tracks"><div style="padding:22px;text-align:center;color:var(--t3);font-size:12.5px">Loading suggestions…</div></div>
+      </div>
+
+      <div class="ph" style="margin-bottom:12px"><div><div class="ph-title" style="font-size:15px">Browse by Mood</div></div></div>
+      <div class="moods">
+        <button class="mc" onclick="quickSearch('chill vibes')">Chill Vibes</button>
+        <button class="mc" onclick="quickSearch('upbeat pop 2024')">Upbeat Pop</button>
+        <button class="mc" onclick="quickSearch('focus lo-fi')">Focus</button>
+        <button class="mc" onclick="quickSearch('90s hip hop')">90s Hip Hop</button>
+        <button class="mc" onclick="quickSearch('indie folk acoustic')">Indie Folk</button>
+        <button class="mc" onclick="quickSearch('dance party hits')">Dance Party</button>
+        <button class="mc" onclick="quickSearch('jazz cafe')">Jazz Café</button>
+        <button class="mc" onclick="quickSearch('synthwave retro')">Synthwave</button>
+        <button class="mc" onclick="quickSearch('classical piano')">Classical</button>
+        <button class="mc" onclick="quickSearch('workout motivation')">Workout</button>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="panel" id="panel-search">
+      <!-- Mobile-only inline search bar -->
+      <div id="mobile-search-bar">
+        <input id="mobile-search-input" type="text" placeholder="Search songs, artists…"
+               autocomplete="off"
+               onkeydown="if(event.key==='Enter'){document.getElementById('search-input').value=this.value;doSearch()}" />
+        <button id="mobile-search-btn" onclick="document.getElementById('search-input').value=document.getElementById('mobile-search-input').value;doSearch()">Go</button>
+      </div>
+      <div class="ph">
+        <div><div class="ph-title" id="sp-title">Search</div><div class="ph-sub" id="sp-sub">Enter a query in the bar above</div></div>
+      </div>
+      <div class="res-grid" id="search-results">
+        <div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--t3)">
+          <div style="font-size:36px;margin-bottom:9px;opacity:.25">🔍</div>
+          <div style="font-size:13.5px;font-weight:500;color:var(--t2)">Start searching</div>
+          <div style="font-size:12px;margin-top:5px">Try a song, artist, or genre</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUEUE -->
+    <div class="panel" id="panel-queue">
+      <div class="ph">
+        <div><div class="ph-title">Queue</div><div class="ph-sub" id="q-sub">Nothing queued yet</div></div>
+        <button class="pbtn" style="color:var(--red)" onclick="clearQueue()">Clear All</button>
+      </div>
+      <div class="tbl-card">
+        <div class="col-hds" style="grid-template-columns:38px 1fr 170px 90px 80px">
+          <span class="col-hd">#</span><span class="col-hd">Song</span><span class="col-hd">Artist</span><span class="col-hd">Duration</span><span class="col-hd">Actions</span>
+        </div>
+        <div id="q-rows"></div>
+      </div>
+    </div>
+
+    <!-- LYRICS -->
+    <div class="panel" id="panel-lyrics">
+      <div class="ph"><div><div class="ph-title">Lyrics</div><div class="ph-sub">Synced lyrics for the current track</div></div></div>
+      <div class="ly-wrap">
+        <div id="ly-content">
+          <div class="ly-no">
+            <div style="font-size:34px;opacity:.2;margin-bottom:10px">🎤</div>
+            <div style="font-size:13.5px;color:var(--t2);font-weight:500">No song playing</div>
+            <div style="font-size:12px;margin-top:5px">Play a song to see lyrics</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RTSP STREAM -->
+    <div class="panel" id="panel-rtsp">
+      <div class="ph">
+        <div><div class="ph-title">Display Stream</div><div class="ph-sub">RTSP video stream for an external display or Raspberry Pi</div></div>
+        <div class="ph-right">
+          <button class="pbtn" id="rtsp-refresh-btn" onclick="refreshRTSP()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Status card -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:18px">
+        <div class="cc" style="grid-column:1/-1">
+          <div class="cc-hd"><div class="cc-title">Stream Status</div><div id="rtsp-mode-badge" style="padding:4px 12px;border-radius:50px;font-size:11.5px;font-weight:600;background:rgba(255,255,255,0.07);color:var(--t3)">Idle</div></div>
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+            <div style="width:12px;height:12px;border-radius:50%;background:var(--t3);flex-shrink:0;transition:background .3s" id="rtsp-status-dot"></div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--t1)" id="rtsp-status-text">RTSP server starting…</div>
+              <div style="font-size:12px;color:var(--t3);margin-top:2px" id="rtsp-status-sub">Waiting for first track</div>
+            </div>
+          </div>
+
+          <!-- RTSP URL display -->
+          <div style="background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--rsm);padding:14px 16px;margin-bottom:14px">
+            <div style="font-size:10.5px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Stream URL</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <code style="flex:1;font-size:13.5px;color:var(--accent2);font-family:monospace;word-break:break-all" id="rtsp-url">rtsp://…:8554/live</code>
+              <button class="pbtn" style="flex-shrink:0;font-size:11.5px" onclick="copyRTSPUrl()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></rect></svg>
+                Copy
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick-start commands -->
+          <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Play on Raspberry Pi</div>
+          <div style="display:flex;flex-direction:column;gap:8px" id="pi-commands">
+            <!-- populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode cards -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:18px">
+        <div class="sc">
+          <div class="sc-hd"><span class="sc-lbl">Mode</span></div>
+          <div class="sc-val" id="rtsp-mode-val" style="font-size:18px">—</div>
+          <div class="sc-trend trend-n"><span>Current state</span></div>
+        </div>
+        <div class="sc">
+          <div class="sc-hd"><span class="sc-lbl">Resolution</span></div>
+          <div class="sc-val" style="font-size:18px">1280×720</div>
+          <div class="sc-trend trend-n"><span>HD stream</span></div>
+        </div>
+        <div class="sc">
+          <div class="sc-hd"><span class="sc-lbl">Protocol</span></div>
+          <div class="sc-val" style="font-size:18px">RTSP</div>
+          <div class="sc-trend trend-n"><span>Port 8554</span></div>
+        </div>
+      </div>
+
+      <!-- Display mode selector -->
+      <div class="tbl-card" style="margin-bottom:18px">
+        <div class="tbl-hd"><div class="tbl-title">Display Mode</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px">
+          <div id="dm-video" class="browser-btn" onclick="setRtspDisplayMode('video')" style="padding:18px 14px">
+            <div style="font-size:28px;margin-bottom:6px">🎬</div>
+            <div class="browser-name">Video &amp; Visualiser</div>
+            <div class="browser-ver" style="text-align:center;margin-top:4px">Music video when available, otherwise animated visualiser</div>
+          </div>
+          <div id="dm-karaoke" class="browser-btn" onclick="setRtspDisplayMode('karaoke')" style="padding:18px 14px">
+            <div style="font-size:28px;margin-bottom:6px">🎤</div>
+            <div class="browser-name">Karaoke Lyrics</div>
+            <div class="browser-ver" style="text-align:center;margin-top:4px">Synced lyrics shown large on screen for karaoke sessions</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info box -->
+      <div class="tbl-card">
+        <div class="tbl-hd"><div class="tbl-title">How it works</div></div>
+        <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="width:32px;height:32px;border-radius:8px;background:var(--accent-s);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent2)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px">Music Video</div><div style="font-size:12px;color:var(--t2)">When a track has a music video on YouTube, it is automatically fetched and streamed at up to 720p.</div></div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="width:32px;height:32px;border-radius:8px;background:rgba(124,90,240,0.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent2)">🌈</div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px">Colour Visualisation</div><div style="font-size:12px;color:var(--t2)">If no video is available, a smooth plasma-wave colour animation is generated with the track title and artist overlaid.</div></div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="width:32px;height:32px;border-radius:8px;background:rgba(74,222,128,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--green)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px">Raspberry Pi Display</div><div style="font-size:12px;color:var(--t2)">Connect a Pi to your HDMI display and run one of the commands above. The stream automatically updates when songs change.</div></div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:flex-start">
+            <div style="width:32px;height:32px;border-radius:8px;background:rgba(124,90,240,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">🎤</div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:3px">Karaoke Mode</div><div style="font-size:12px;color:var(--t2)">Switch to Karaoke mode above to show real-time synced lyrics large on your TV screen instead of the video. Perfect for sing-along sessions.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIKED -->
+    <div class="panel" id="panel-liked">
+      <div class="ph"><div><div class="ph-title">Liked Songs</div><div class="ph-sub" id="liked-sub">Your favorite tracks</div></div></div>
+      <div class="tbl-card">
+        <div class="col-hds" style="grid-template-columns:38px 1fr 170px 90px 80px">
+          <span class="col-hd">#</span><span class="col-hd">Song</span><span class="col-hd">Artist</span><span class="col-hd">Duration</span><span class="col-hd">Actions</span>
+        </div>
+        <div id="liked-rows"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="panel" id="panel-settings">
+      <div class="ph">
+        <div><div class="ph-title">Settings</div><div class="ph-sub">Manage your YouTube account and preferences</div></div>
+      </div>
+
+      <!-- YouTube Account -->
+      <div class="set-section">
+        <div class="set-section-title">YouTube Account</div>
+        <div class="set-card">
+
+          <!-- Connected state -->
+          <div id="yt-connected-view" style="display:none">
+            <div class="yt-connected">
+              <div class="yt-avatar">▶</div>
+              <div style="flex:1">
+                <div class="yt-name" id="yt-account-name">YouTube Account</div>
+                <div class="yt-meta" id="yt-account-meta">Connected via browser cookies</div>
+              </div>
+              <span class="status-pill connected">● Connected</span>
+            </div>
+            <div style="display:flex;gap:8px;padding:0 14px 14px;flex-wrap:wrap">
+              <button class="pbtn" id="yt-test-btn" onclick="ytTest()" style="font-size:12px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Test connection
+              </button>
+              <button class="pbtn" onclick="ytSyncLiked()" style="font-size:12px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                Sync liked songs
+              </button>
+              <button class="pbtn" onclick="ytDisconnect()" style="font-size:12px;color:var(--red);margin-left:auto">Disconnect</button>
+            </div>
+          </div>
+
+          <!-- Disconnected state -->
+          <div id="yt-connect-view">
+            <div class="set-row" style="border-bottom:none;padding-bottom:4px">
+              <div>
+                <div class="set-row-label">Connect YouTube Account</div>
+                <div class="set-row-sub">Unlock liked songs, personalised recommendations and age-restricted content</div>
+              </div>
+              <span class="status-pill disconnected">Not connected</span>
+            </div>
+
+            <div class="method-tabs" style="display:none"></div>
+
+            <!-- Google Login only -->
+            <div class="method-pane active" id="auth-pane-oauth">
+              <div class="info-box">
+                <strong style="color:var(--t1)">Connect your Google / YouTube account:</strong><br>
+                Click the button below. You'll get a short code and a link to open on any device — phone, tablet, or another computer. Sign into your Google account there, enter the code, and Streamy will connect automatically. No extensions or passwords needed.
+              </div>
+              <div style="padding:14px">
+                <div id="oauth-idle">
+                  <button class="pbtn accent" onclick="startOAuth()" style="width:100%;justify-content:center;height:44px;font-size:14px">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.318-4.792 3.318a5.126 5.126 0 0 1 0-10.25c1.33 0 2.532.521 3.43 1.371l2.406-2.406A8.577 8.577 0 0 0 12 4a8.574 8.574 0 1 0 0 17.148A8.573 8.573 0 0 0 20.58 12c0-.555-.053-1.096-.297-1.644z"/></svg>
+                    Connect with Google
+                  </button>
+                </div>
+                <div id="oauth-pending" style="display:none">
+                  <div style="background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--rsm);padding:18px;text-align:center;margin-bottom:12px">
+                    <div style="font-size:11.5px;color:var(--t3);margin-bottom:8px">Open this URL on any device and sign in:</div>
+                    <a id="oauth-url" href="#" target="_blank" style="color:var(--accent2);font-weight:700;font-size:14px;word-break:break-all">https://www.google.com/device</a>
+                    <div style="margin:14px 0 6px">
+                      <div style="font-size:11.5px;color:var(--t3);margin-bottom:6px">Then enter this code:</div>
+                      <div id="oauth-code" style="font-size:28px;font-weight:800;color:var(--t1);letter-spacing:4px;font-family:monospace">----</div>
+                    </div>
+                    <button onclick="copyOAuthCode()" class="pbtn" style="font-size:12px;margin:0 auto">Copy code</button>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;color:var(--t3);font-size:12.5px">
+                    <div class="spin-sm"></div>
+                    <span id="oauth-status-msg">Waiting for you to sign in…</span>
+                  </div>
+                  <button onclick="cancelOAuth()" class="pbtn" style="font-size:12px;margin-top:12px;color:var(--red)">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Playback Preferences -->
+      <div class="set-section">
+        <div class="set-section-title">Playback</div>
+        <div class="set-card">
+          <div class="set-row">
+            <div>
+              <div class="set-row-label">Volume</div>
+              <div class="set-row-sub">Master volume level</div>
+            </div>
+            <div class="set-row-right" style="gap:12px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--t3);flex-shrink:0"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+              <input class="sb-vol-sl" id="settings-vol-sl" type="range" min="0" max="100" value="80"
+                     style="width:160px;flex:none"
+                     oninput="setVol(this.value);document.getElementById('settings-vol-val').textContent=this.value" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--t3);flex-shrink:0"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+              <span id="settings-vol-val" style="font-size:13px;color:var(--t2);width:32px;text-align:right;font-weight:600">80</span>
+            </div>
+          </div>
+          <div class="set-row">
+            <div>
+              <div class="set-row-label">Default Volume on Start</div>
+              <div class="set-row-sub">Volume level when Streamy launches</div>
+            </div>
+            <div class="set-row-right">
+              <input type="range" class="sb-vol-sl" min="0" max="100" id="pref-vol" style="width:120px"
+                     oninput="document.getElementById('pref-vol-val').textContent=this.value"
+                     onchange="savePref('playback','defaultVolume',+this.value)" />
+              <span id="pref-vol-val" style="font-size:12px;color:var(--t3);width:28px;text-align:right">80</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diagnostics -->
+      <div class="set-section">
+        <div class="set-section-title">Diagnostics</div>
+        <div class="set-card">
+          <div class="set-row">
+            <div>
+              <div class="set-row-label">System check</div>
+              <div class="set-row-sub">Verify yt-dlp, FFmpeg, RTSP and YouTube auth</div>
+            </div>
+            <button class="pbtn" onclick="runDiagnostics()" style="font-size:12px">Run check</button>
+          </div>
+          <div id="diag-output" style="display:none;padding:14px 18px;border-top:1px solid var(--border)">
+            <div id="diag-rows"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</main>
+</div>
+
+<audio id="aud" preload="none"></audio>
+<div id="toast-a"></div>
+
+<script>
+const S={queue:[],current:null,playing:false,shuffle:false,repeat:'none',volume:80,
+  liked:JSON.parse(localStorage.getItem('s-liked')||'[]'),sidebarOpen:true,
+  songsPlayed:0,listenSecs:0,searchType:'songs',activity:[0,0,0,0,0,0,0],loading:false};
+const aud=document.getElementById('aud');
+let ws,syncedLines=[],listenTmr=null;
+
+function loadAndPlay(t){
+  if(!t)return;
+
+  // Tear down previous listeners before touching the element
+  if(aud._onCanPlay){aud.removeEventListener('canplay',aud._onCanPlay);aud._onCanPlay=null;}
+  if(aud._onError)  {aud.removeEventListener('error',  aud._onError);  aud._onError=null;}
+
+  S.playing=true; S.loading=true;
+  updatePBUI(); refreshNP();
+
+  aud._onCanPlay=function(){
+    aud.removeEventListener('canplay',aud._onCanPlay); aud._onCanPlay=null;
+    S.loading=false;
+    aud.play().then(()=>{S.playing=true;updatePBUI();}).catch(()=>{
+      // Autoplay blocked (common on mobile first gesture) — show play button
+      S.playing=false; S.loading=false; updatePBUI();
+      toast('Tap ▶ to start playback','info');
+    });
+  };
+
+  aud._onError=function(){
+    aud.removeEventListener('error',aud._onError); aud._onError=null;
+    S.playing=false; S.loading=false; updatePBUI();
+    const code=aud.error?.code;
+    const msgs={1:'Aborted',2:'Network error',3:'Decode error',4:'Format unsupported'};
+    toast(`Stream error: ${msgs[code]||'unknown'} — skipping`,'info');
+    // Auto-advance on error
+    setTimeout(()=>{
+      if(S.queue.length){S.current=S.queue.shift();S.songsPlayed++;loadAndPlay(S.current);refreshNP();renderQueue();updateStats();bumpActivity();}
+    },1500);
+  };
+
+  aud.addEventListener('canplay', aud._onCanPlay);
+  aud.addEventListener('error',   aud._onError);
+
+  // Setting src triggers load automatically — no need to call aud.load()
+  aud.src=`/api/stream/${t.videoId}`;
+  aud.volume=S.volume/100;
+
+  fetchLyrics(t);
+  startLT();
+}
+aud.addEventListener('ended',()=>{
+  if(S.repeat==='one'){aud.currentTime=0;aud.play();return;}
+  if(S.queue.length){S.current=S.queue.shift();S.songsPlayed++;loadAndPlay(S.current);refreshNP();renderQueue();updateStats();bumpActivity();}
+  else{S.playing=false;S.current=null;refreshNP();updatePBUI();stopLT();}
+});
+aud.addEventListener('timeupdate',()=>{
+  S.position=aud.currentTime;S.duration=aud.duration||S.current?.duration||0;
+  updateProgress();updateSyncedLyrics();
+});
+aud.addEventListener('loadedmetadata',()=>{
+  S.duration=aud.duration;document.getElementById('t-tot').textContent=fmt(aud.duration);
+});
+function startLT(){stopLT();listenTmr=setInterval(()=>{S.listenSecs++;updateStats();},1000);}
+function stopLT(){if(listenTmr){clearInterval(listenTmr);listenTmr=null;}}
+
+function togglePlay(){
+  if(!S.current){
+    if(S.queue.length){S.current=S.queue.shift();S.songsPlayed++;loadAndPlay(S.current);refreshNP();renderQueue();updateStats();bumpActivity();}
+    else toast('Queue is empty','info');return;
+  }
+  if(aud.paused){aud.play();S.playing=true;startLT();}else{aud.pause();S.playing=false;stopLT();}
+  updatePBUI();
+}
+function skipNext(){
+  if(S.queue.length){S.current=S.queue.shift();S.songsPlayed++;loadAndPlay(S.current);refreshNP();renderQueue();updateStats();bumpActivity();}
+  else toast('Nothing next in queue','info');
+}
+function skipPrev(){if(aud.currentTime>4)aud.currentTime=0;}
+function toggleShuffle(){
+  S.shuffle=!S.shuffle;
+  document.getElementById('btn-shuffle').classList.toggle('on',S.shuffle);
+  if(S.shuffle)S.queue.sort(()=>Math.random()-.5);renderQueue();
+}
+function cycleRepeat(){
+  const m=['none','one','all'];
+  S.repeat=m[(m.indexOf(S.repeat)+1)%3];
+  ws&&ws.readyState===1&&ws.send(JSON.stringify({action:'cycleRepeat'}));
+}
+function setVol(v){
+  S.volume=+v;
+  aud.volume=v/100;
+  // Sync settings panel slider
+  const sl=document.getElementById('settings-vol-sl');
+  const vl=document.getElementById('settings-vol-val');
+  if(sl)sl.value=v;
+  if(vl)vl.textContent=v;
+}
+document.getElementById('prog-track').addEventListener('click',e=>{
+  if(!S.duration)return;const r=e.currentTarget.getBoundingClientRect();aud.currentTime=((e.clientX-r.left)/r.width)*S.duration;
+});
+
+// ─── Track registry (avoids broken JSON-in-HTML-attribute serialisation) ──────
+const TR = {};   // id → track object
+let _tid = 0;
+function treg(t){ const id=++_tid; TR[id]=t; return id; }
+function tget(id){ return TR[id]||null; }
+
+function addToQueue(id){
+  const t=tget(id); if(!t)return;
+  S.queue.push({...t,qid:Date.now()+Math.random()});
+  renderQueue();updateQBadge();updateStats();
+  toast(`Added: ${t.title.slice(0,32)}`,'success');
+  fetch('/api/queue/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(t)});
+}
+function playNow(id){
+  const t=tget(id); if(!t)return;
+  S.current=t;S.songsPlayed++;
+  loadAndPlay(t);refreshNP();updateStats();bumpActivity();
+  toast(`Now playing: ${t.title.slice(0,32)}`,'info');
+}
+function removeFromQueue(i){S.queue.splice(i,1);renderQueue();updateQBadge();updateStats();}
+function clearQueue(){S.queue=[];renderQueue();updateQBadge();updateStats();}
+function playNowFromQueue(i){
+  if(i<0||i>=S.queue.length)return;
+  S.current=S.queue.splice(i,1)[0];S.songsPlayed++;loadAndPlay(S.current);refreshNP();renderQueue();updateStats();bumpActivity();
+}
+function onTrackChange(){if(S.current){S.songsPlayed++;loadAndPlay(S.current);refreshNP();updateStats();bumpActivity();}}
+
+let dragFrom=null;
+function dstart(e,i){dragFrom=i;e.dataTransfer.effectAllowed='move';}
+function dover(e){e.preventDefault();e.currentTarget.classList.add('drag-over');}
+function ddrop(e,i){
+  e.preventDefault();e.currentTarget.classList.remove('drag-over');
+  if(dragFrom===null||dragFrom===i)return;
+  const[x]=S.queue.splice(dragFrom,1);S.queue.splice(i,0,x);dragFrom=null;renderQueue();
+}
+
+function bumpActivity(){const d=new Date().getDay();const idx=d===0?6:d-1;S.activity[idx]++;renderBarChart();}
+function renderBarChart(){
+  const c=document.getElementById('bar-chart');
+  const max=Math.max(...S.activity,1);
+  const today=(new Date().getDay()===0?6:new Date().getDay()-1);
+  c.innerHTML=S.activity.map((v,i)=>`<div class="bar-col"><div class="bar-fill${i===today?' today':''}" style="height:${Math.max((v/max)*100,3)}%" title="${v} songs"></div></div>`).join('');
+}
+function updateStats(){
+  document.getElementById('st-played').textContent=S.songsPlayed;
+  document.getElementById('st-queue').textContent=S.queue.length;
+  document.getElementById('st-liked').textContent=S.liked.length;
+  const m=Math.floor(S.listenSecs/60);
+  document.getElementById('st-time').textContent=m>60?`${(m/60).toFixed(1)}h`:`${m}m`;
+  document.getElementById('st-played-s').textContent=`${S.songsPlayed} this session`;
+  document.getElementById('d-num').textContent=S.queue.length;
+  document.getElementById('leg-q').textContent=S.queue.length;
+  document.getElementById('leg-p').textContent=S.songsPlayed;
+  document.getElementById('leg-l').textContent=S.liked.length;
+}
+
+function refreshAll(){refreshNP();updatePBUI();renderQueue();updateQBadge();updateStats();}
+function refreshNP(){
+  const t=S.current;
+  const em=document.getElementById('np-empty'),th=document.getElementById('np-thumb');
+  if(!t){em.style.display='flex';th.style.display='none';document.getElementById('np-title').textContent='No song playing';document.getElementById('np-artist').textContent='Search and add songs below';document.title='Streamy';return;}
+  document.getElementById('np-title').textContent=t.title;
+  document.getElementById('np-artist').textContent=t.artist;
+  document.title=`${t.title} — Streamy`;
+  if(t.thumbnail){th.src=t.thumbnail;th.style.display='block';em.style.display='none';}
+  else{th.style.display='none';em.style.display='flex';}
+  document.getElementById('t-tot').textContent=fmt(t.duration);
+}
+function updatePBUI(){
+  const pi=document.getElementById('ico-play'),pa=document.getElementById('ico-pause');
+  const btn=document.getElementById('btn-play');
+  if(S.loading){
+    pi.style.display='none';pa.style.display='none';
+    if(btn&&!btn.querySelector('.pb-spin')){
+      const sp=document.createElement('div');sp.className='pb-spin';
+      sp.style.cssText='width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite';
+      btn.appendChild(sp);
+    }
+  } else {
+    btn&&btn.querySelector('.pb-spin')?.remove();
+    if(!aud.paused&&S.playing){pi.style.display='none';pa.style.display='';}
+    else{pi.style.display='';pa.style.display='none';}
+  }
+}
+function updateProgress(){
+  const d=S.duration||1;
+  document.getElementById('prog-fill').style.width=`${(S.position/d)*100}%`;
+  document.getElementById('t-cur').textContent=fmt(S.position);
+}
+function updateQBadge(){
+  const n=S.queue.length;document.getElementById('qnc').textContent=n;
+  const b=document.getElementById('q-badge');
+  if(n>0){b.style.display='flex';b.textContent=n>99?'99+':n;}else b.style.display='none';
+}
+
+function renderQueue(){
+  const c=document.getElementById('q-rows'),sub=document.getElementById('q-sub');
+  if(!S.queue.length){c.innerHTML=`<div class="qe"><div class="qe-ico">🎵</div><div class="qe-txt">Queue is empty</div><div class="qe-sub">Search for songs and add them</div></div>`;sub.textContent='Nothing queued yet';return;}
+  sub.textContent=`${S.queue.length} song${S.queue.length!==1?'s':''}`;
+  c.innerHTML=S.queue.map((t,i)=>`
+    <div class="tr" draggable="true" style="grid-template-columns:38px 1fr 170px 90px 80px"
+         ondragstart="dstart(event,${i})" ondragover="dover(event)" ondrop="ddrop(event,${i})" ondragleave="this.classList.remove('drag-over')">
+      <div class="tr-num">${i+1}</div>
+      <div class="tr-info"><div class="tr-art"><img src="${t.thumbnail||''}" alt="" onerror="this.src=''" /></div><div><div class="tr-title">${eh(t.title)}</div><div class="tr-artist">${eh(t.artist)}</div></div></div>
+      <div class="tr-cell">${eh(t.artist)}</div>
+      <div class="tr-dur">${fmt(t.duration)}</div>
+      <div class="tr-acts">
+        <button class="tr-act" title="Play Now" onclick="playNowFromQueue(${i})"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="tr-act del" title="Remove" onclick="removeFromQueue(${i})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>`).join('');
+}
+function renderLiked(){
+  const c=document.getElementById('liked-rows');
+  document.getElementById('liked-sub').textContent=`${S.liked.length} songs`;
+  if(!S.liked.length){c.innerHTML='<div style="padding:40px;text-align:center;color:var(--t3);font-size:12.5px">No liked songs yet — connect YouTube in Settings to sync</div>';return;}
+  c.innerHTML=S.liked.map((t,i)=>{
+    const id=treg(t);
+    return `
+    <div class="tr${S.current?.videoId===t.videoId?' playing':''}" style="grid-template-columns:38px 1fr 170px 90px 80px">
+      <div class="tr-num">${S.current?.videoId===t.videoId?'<div class="pbars"><span></span><span></span><span></span></div>':i+1}</div>
+      <div class="tr-info"><div class="tr-art"><img src="${t.thumbnail||''}" alt="" /></div><div><div class="tr-title">${eh(t.title)}</div><div class="tr-artist">${eh(t.artist)}</div></div></div>
+      <div class="tr-cell">${eh(t.artist)}</div>
+      <div class="tr-dur">${fmt(t.duration)}</div>
+      <div class="tr-acts">
+        <button class="tr-act" title="Add to Queue" onclick="addToQueue(${id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+        <button class="tr-act" title="Play Now" onclick="playNow(${id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderHomeTracks(tracks){
+  const c=document.getElementById('home-tracks');
+  if(!tracks.length){c.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3);font-size:12.5px">No results</div>';return;}
+  c.innerHTML=tracks.slice(0,8).map((t,i)=>{
+    const id=treg(t);
+    return `
+    <div class="tr" style="grid-template-columns:38px 1fr 170px 90px 80px">
+      <div class="tr-num">${i+1}</div>
+      <div class="tr-info"><div class="tr-art"><img src="${t.thumbnail||''}" alt="" loading="lazy" onerror="this.src=''" /></div><div><div class="tr-title">${eh(t.title)}</div><div class="tr-artist">${eh(t.artist)}</div></div></div>
+      <div class="tr-cell">${eh(t.artist)}</div>
+      <div class="tr-dur">${fmt(t.duration)}</div>
+      <div class="tr-acts">
+        <button class="tr-act" title="Add to Queue" onclick="addToQueue(${id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+        <button class="tr-act" title="Play Now" onclick="playNow(${id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderResultsGrid(tracks,container){
+  if(!tracks.length){container.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--t3)">No results found</div>';return;}
+  container.innerHTML=tracks.map(t=>{
+    const id=treg(t);
+    return `
+    <div class="rc">
+      <div class="rc-art">
+        <img src="${t.thumbnail||''}" alt="" loading="lazy" onerror="this.src=''" />
+        <div class="rc-ov">
+          <button class="ov-b p" onclick="addToQueue(${id})" title="Add to Queue"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+          <button class="ov-b s" onclick="playNow(${id})" title="Play Now"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        </div>
+      </div>
+      <div class="rc-info">
+        <div class="rc-title">${eh(t.title)}</div>
+        <div class="rc-meta"><div class="rc-artist">${eh(t.artist)}</div><div class="rc-dur">${fmt(t.duration)}</div></div>
+      </div>
+      <div class="rc-btns">
+        <button class="rb q" onclick="addToQueue(${id})"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg> Queue</button>
+        <button class="rb pn" onclick="playNow(${id})">▶ Play</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setType(t,btn){S.searchType=t;document.querySelectorAll('#type-tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function doSearch(){const q=document.getElementById('search-input').value.trim();if(!q)return;showPanel('search');performSearch(q);}
+function quickSearch(q){document.getElementById('search-input').value=q;doSearch();}
+async function performSearch(q){
+  const c=document.getElementById('search-results');
+  document.getElementById('sp-title').textContent=`"${q}"`;document.getElementById('sp-sub').textContent='Searching…';
+  c.innerHTML=Array(8).fill('<div class="skel-c skel"></div>').join('');
+  try{
+    const d=await(await fetch(`/api/search?q=${encodeURIComponent(q)}&type=${S.searchType}`)).json();
+    document.getElementById('sp-sub').textContent=`${(d.results||[]).length} results`;
+    renderResultsGrid(d.results||[],c);
+  }catch(e){c.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--t3)"><div style="font-size:28px;margin-bottom:8px">⚠️</div>Search failed. Is yt-dlp installed?</div>`;}
+}
+async function loadHome(){
+  renderBarChart();
+  try{const d=await(await fetch('/api/search?q=top%20hits%202024')).json();renderHomeTracks(d.results||[]);}
+  catch(e){document.getElementById('home-tracks').innerHTML='<div style="padding:20px;text-align:center;color:var(--t3);font-size:12.5px">Install yt-dlp to load suggestions.</div>';}
+}
+
+async function fetchLyrics(t){
+  const c=document.getElementById('ly-content');
+  c.innerHTML='<div class="ly-load"><div class="ly-spin"></div><div style="font-size:12.5px;color:var(--t3)">Loading lyrics…</div></div>';
+  try{
+    const d=await(await fetch(`/api/lyrics?title=${encodeURIComponent(t.title)}&artist=${encodeURIComponent(t.artist)}`)).json();
+    if(d.hasSynced&&d.synced){
+      syncedLines=parseLRC(d.synced);
+      c.innerHTML=`<div class="ly-hd"><div class="ly-title">${eh(t.title)}</div><div class="ly-artist">${eh(t.artist)}</div></div><div class="ly-body" id="lbody">${syncedLines.map((l,i)=>`<div class="lyric-line" data-i="${i}">${eh(l.text)||'·'}</div>`).join('')}</div>`;
+    }else if(d.plain){
+      syncedLines=[];
+      c.innerHTML=`<div class="ly-hd"><div class="ly-title">${eh(t.title)}</div><div class="ly-artist">${eh(t.artist)}</div></div><div class="ly-body">${eh(d.plain)}</div>`;
+    }else{
+      syncedLines=[];c.innerHTML='<div class="ly-no"><div style="font-size:30px;opacity:.2;margin-bottom:8px">🎤</div><div style="color:var(--t2);font-size:13px">Lyrics not found</div></div>';
+    }
+  }catch(e){syncedLines=[];c.innerHTML='<div class="ly-no" style="color:var(--t3)">Could not load lyrics</div>';}
+}
+function parseLRC(lrc){
+  return lrc.split('\n').map(l=>{const m=l.match(/\[(\d+):(\d+\.\d+)\](.*)/);if(!m)return null;return{time:+m[1]*60+parseFloat(m[2]),text:m[3].trim()};}).filter(Boolean);
+}
+function updateSyncedLyrics(){
+  if(!syncedLines.length)return;
+  const t=aud.currentTime;let ai=-1;
+  for(let i=0;i<syncedLines.length;i++){if(syncedLines[i].time<=t)ai=i;else break;}
+  if(ai<0)return;
+  const b=document.getElementById('lbody');if(!b)return;
+  b.querySelectorAll('.lyric-line').forEach((el,i)=>el.classList.toggle('al',i===ai));
+  const al=b.querySelector('.al');if(al)al.scrollIntoView({behavior:'smooth',block:'center'});
+  // Push to server for karaoke RTSP display
+  if(ws&&ws.readyState===1){
+    ws.send(JSON.stringify({action:'lyricLine',payload:{line:syncedLines[ai].text||''}}));
+  }
+}
+
+function showPanel(name){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  document.querySelectorAll('.sb-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(n=>{if(n.getAttribute('onclick')?.includes(`'${name}'`))n.classList.add('active');});
+  if(name==='liked')renderLiked();
+  if(name==='queue')renderQueue();
+}
+function toggleSidebar(){S.sidebarOpen=!S.sidebarOpen;document.getElementById('sidebar').classList.toggle('collapsed',!S.sidebarOpen);}
+
+function toast(msg,type='info'){
+  const a=document.getElementById('toast-a');const el=document.createElement('div');
+  el.className=`toast ${type}`;el.innerHTML=`<div class="td"></div>${eh(msg)}`;
+  a.appendChild(el);setTimeout(()=>{el.classList.add('exit');setTimeout(()=>el.remove(),220);},2700);
+}
+function eh(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmt(s){if(!s||isNaN(s))return'0:00';s=Math.floor(s);return`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
+function ej(t){return JSON.stringify(JSON.stringify(t));}
+
+// ─── OAuth2 ────────────────────────────────────────────────────────────────────
+let oauthPollTimer = null;
+
+async function startOAuth() {
+  document.getElementById('oauth-idle').style.display = 'none';
+  document.getElementById('oauth-pending').style.display = '';
+  document.getElementById('oauth-status-msg').textContent = 'Starting — please wait…';
+
+  try {
+    const d = await (await fetch('/api/settings/youtube/oauth2/start', { method: 'POST' })).json();
+    if (!d.success) {
+      toast(`OAuth error: ${d.error}`, 'info');
+      cancelOAuth(); return;
+    }
+    document.getElementById('oauth-url').href  = d.url;
+    document.getElementById('oauth-url').textContent = d.url;
+    document.getElementById('oauth-code').textContent = d.code;
+    document.getElementById('oauth-status-msg').textContent = 'Waiting for you to sign in…';
+    // Poll every 4 seconds
+    oauthPollTimer = setInterval(pollOAuth, 4000);
+  } catch(e) {
+    toast('Could not start Google auth — check the server', 'info');
+    cancelOAuth();
+  }
+}
+
+async function pollOAuth() {
+  try {
+    const d = await (await fetch('/api/settings/youtube/oauth2/status')).json();
+    if (d.status === 'authorized') {
+      clearInterval(oauthPollTimer); oauthPollTimer = null;
+      toast(`✅ Connected as ${d.accountName}`, 'success');
+      cancelOAuth();
+    } else if (d.status === 'error') {
+      clearInterval(oauthPollTimer); oauthPollTimer = null;
+      document.getElementById('oauth-status-msg').textContent = `Error: ${d.error}`;
+      toast(d.error, 'info');
+    }
+    // 'pending' → keep polling
+  } catch {}
+}
+
+function cancelOAuth() {
+  clearInterval(oauthPollTimer); oauthPollTimer = null;
+  fetch('/api/settings/youtube/oauth2/cancel', { method: 'POST' }).catch(()=>{});
+  document.getElementById('oauth-idle').style.display = '';
+  document.getElementById('oauth-pending').style.display = 'none';
+}
+
+function copyOAuthCode() {
+  const code = document.getElementById('oauth-code').textContent;
+  navigator.clipboard.writeText(code).then(() => toast('Code copied!', 'success')).catch(() => {});
+}
+
+let appConfig = {};
+
+function applyConfig(cfg) {
+  if (!cfg) return;
+  appConfig = cfg;
+
+  // YouTube account state
+  const connected = cfg.youtube?.loggedIn;
+  const cv = document.getElementById('yt-connected-view');
+  const dv = document.getElementById('yt-connect-view');
+  if (cv && dv) {
+    cv.style.display = connected ? '' : 'none';
+    dv.style.display = connected ? 'none' : '';
+  }
+  if (connected) {
+    const n = document.getElementById('yt-account-name');
+    const m = document.getElementById('yt-account-meta');
+    if (n) n.textContent = cfg.youtube.accountName || 'YouTube Account';
+    if (m) {
+      const method = cfg.youtube.authMethod === 'oauth2' ? 'Connected via Google login' :
+                     cfg.youtube.authMethod === 'browser-cookies' ? `Connected via ${cfg.youtube.browser} cookies` :
+                     'Connected via cookies.txt';
+      const checked = cfg.youtube.lastChecked
+        ? ` · Verified ${new Date(cfg.youtube.lastChecked).toLocaleTimeString()}`
+        : '';
+      m.textContent = method + checked;
+    }
+  }
+
+  // Volume pref
+  const pv = document.getElementById('pref-vol');
+  const pvv = document.getElementById('pref-vol-val');
+  if (pv && cfg.playback) {
+    pv.value = cfg.playback.defaultVolume;
+    if (pvv) pvv.textContent = cfg.playback.defaultVolume;
+  }
+
+  // RTSP display mode buttons
+  const dm = cfg.rtsp?.displayMode || 'video';
+  document.getElementById('dm-video')?.classList.toggle('on', dm === 'video');
+  document.getElementById('dm-karaoke')?.classList.toggle('on', dm === 'karaoke');
+}
+
+function setAuthTab(tab, el) {
+  document.querySelectorAll('.method-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.method-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`auth-pane-${tab}`).classList.add('active');
+  if (tab === 'browser') loadBrowsers();
+}
+
+async function loadBrowsers() {
+  const grid = document.getElementById('browser-grid');
+  if (!grid) return;
+  const icons = { chrome:'🌐', chromium:'🔵', firefox:'🦊', edge:'🔷' };
+  try {
+    const d = await (await fetch('/api/settings/youtube/browsers')).json();
+    const all = [
+      { id:'chrome',   name:'Chrome'  },
+      { id:'chromium', name:'Chromium'},
+      { id:'firefox',  name:'Firefox' },
+      { id:'edge',     name:'Edge'    },
+    ];
+    grid.innerHTML = all.map(b => {
+      const found = d.browsers.find(x => x.id === b.id);
+      const unavail = !found ? 'browser-unavail' : '';
+      const ver = found ? `<div class="browser-ver">${found.version.split(' ').slice(-1)[0]}</div>` : `<div class="browser-ver">Not found</div>`;
+      const click = found ? `onclick="ytConnectBrowser('${b.id}',this)"` : '';
+      return `<div class="browser-btn ${unavail}" ${click} data-browser-id="${b.id}">
+        <div class="browser-icon">${icons[b.id]||'🌐'}</div>
+        <div class="browser-name">${b.name}</div>
+        ${ver}
+      </div>`;
+    }).join('');
+  } catch {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:16px;color:var(--red);font-size:12.5px;text-align:center">Could not detect browsers</div>';
+  }
+}
+
+async function ytConnectBrowser(browser, el) {
+  el.classList.add('loading');
+  const nameEl = el.querySelector('.browser-name');
+  const origName = nameEl.textContent;
+  nameEl.innerHTML = '<span class="spin-sm"></span>';
+
+  // Show a status message in the info box
+  const info = el.closest('.method-pane').querySelector('.info-box');
+  const origInfo = info ? info.innerHTML : '';
+  if (info) info.innerHTML = `<strong style="color:var(--t1)">Connecting…</strong> Reading ${browser} cookies and verifying with YouTube. This can take up to 30 seconds. <strong>Do not close this page.</strong>`;
+
+  try {
+    const resp = await fetch('/api/settings/youtube/connect-browser', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ browser }),
+    });
+    const d = await resp.json();
+    if (!d.success && d.error) {
+      // Immediate error (e.g. browser not found)
+      if (info) info.innerHTML = `<span style="color:var(--red)">❌ ${eh(d.error)}</span>`;
+      toast(d.error, 'info');
+      el.classList.remove('loading');
+      nameEl.textContent = origName;
+    }
+    // Otherwise result comes back via WebSocket notification
+  } catch {
+    toast('Connection failed — is the server running?', 'info');
+    el.classList.remove('loading');
+    nameEl.textContent = origName;
+    if (info) info.innerHTML = origInfo;
+  }
+
+  // Reset the button after 35s regardless (in case WS notification restores state)
+  setTimeout(() => {
+    el.classList.remove('loading');
+    nameEl.textContent = origName;
+    if (info) info.innerHTML = origInfo;
+  }, 35000);
+}
+
+async function ytTest() {
+  const btn = document.getElementById('yt-test-btn');
+  if (btn) { btn.innerHTML = '<span class="spin-sm"></span> Testing…'; btn.disabled = true; }
+  try {
+    const d = await (await fetch('/api/settings/youtube/test', { method:'POST' })).json();
+    if (d.success) toast(`✅ Connection verified — ${d.accountName}`, 'success');
+    else toast(`❌ ${d.error || 'Auth check failed'}`, 'info');
+  } catch { toast('Test failed', 'info'); }
+  finally {
+    if (btn) { btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Test connection`; btn.disabled = false; }
+  }
+}
+
+async function ytDisconnect() {
+  if (!confirm('Disconnect your YouTube account?')) return;
+  await fetch('/api/settings/youtube/disconnect', { method:'POST' });
+  toast('YouTube account disconnected', 'info');
+}
+
+async function ytSyncLiked() {
+  toast('Syncing liked songs from YouTube Music…', 'info');
+  try {
+    const d = await (await fetch('/api/settings/youtube/liked')).json();
+    if (d.tracks?.length) {
+      S.liked = d.tracks;
+      localStorage.setItem('s-liked', JSON.stringify(S.liked));
+      updateStats();
+      toast(`✅ Synced ${d.tracks.length} liked songs`, 'success');
+    } else {
+      toast('No liked songs found', 'info');
+    }
+  } catch { toast('Sync failed — check your connection', 'info'); }
+}
+
+function handleCookieFile(file) {
+  if (!file) return;
+  uploadCookieFile(file);
+}
+
+function handleCookieDrop(e) {
+  e.preventDefault();
+  document.getElementById('cookie-drop-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadCookieFile(file);
+}
+
+async function uploadCookieFile(file) {
+  const status = document.getElementById('cookie-upload-status');
+  const zone   = document.getElementById('cookie-drop-zone');
+  if (status) status.innerHTML = '<span class="spin-sm"></span> Uploading and testing…';
+  if (zone) zone.style.opacity = '0.5';
+
+  const fd = new FormData();
+  fd.append('cookies', file);
+  try {
+    const d = await (await fetch('/api/settings/youtube/upload-cookies', { method:'POST', body:fd })).json();
+    if (d.success) {
+      toast(`✅ Connected as ${d.accountName}`, 'success');
+      if (status) status.textContent = '';
+    } else {
+      if (status) status.innerHTML = `<span style="color:var(--red)">❌ ${eh(d.error)}</span>`;
+      toast(`❌ ${d.error}`, 'info');
+    }
+  } catch {
+    if (status) status.innerHTML = '<span style="color:var(--red)">Upload failed</span>';
+  } finally {
+    if (zone) zone.style.opacity = '1';
+  }
+}
+
+async function savePref(section, key, value) {
+  try {
+    await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ [section]: { [key]: value } }),
+    });
+  } catch {}
+}
+
+async function runDiagnostics() {
+  const out  = document.getElementById('diag-output');
+  const rows = document.getElementById('diag-rows');
+  if (!out || !rows) return;
+  out.style.display = '';
+  rows.innerHTML = '<div style="color:var(--t3);font-size:12.5px"><span class="spin-sm"></span>  Running checks…</div>';
+  try {
+    const d = await (await fetch('/api/health')).json();
+    const checks = [
+      { label: 'yt-dlp',   value: d.ytdlp,  ok: d.ytdlp !== 'not found' },
+      { label: 'FFmpeg',   value: d.ffmpeg, ok: d.ffmpeg !== 'not found' },
+      { label: 'RTSP',     value: d.rtsp?.enabled ? 'Running' : 'Disabled', ok: !!d.rtsp?.enabled },
+      { label: 'YouTube',  value: d.youtube?.loggedIn ? `Connected (${d.youtube.method})` : 'Not connected', ok: !!d.youtube?.loggedIn },
+    ];
+    rows.innerHTML = checks.map(c => `
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:${c.ok?'var(--green)':'var(--yellow)'};">${c.ok?'✔':'⚠'}</span>
+        <span style="font-size:12.5px;color:var(--t2);width:80px;flex-shrink:0">${c.label}</span>
+        <span style="font-size:12px;color:var(--t3)">${eh(c.value)}</span>
+      </div>`).join('');
+  } catch {
+    rows.innerHTML = '<div style="color:var(--red);font-size:12.5px">Health check failed — is the server running?</div>';
+  }
+}
+
+// Handle WS configUpdate and notification events
+const _origWsMsg = _wsMessagePatch;
+// ─── Override the WS message handler to also handle settings events ────────────
+function connectWS(){
+  const p=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${p}://${location.host}`);
+  ws.onopen=()=>{};
+  ws.onmessage=e=>{
+    const{event,data}=JSON.parse(e.data);
+    if(event==='state'){
+      S.queue=data.queue||[];S.current=data.currentTrack;
+      Object.assign(S,data.playbackState||{});
+      if(data.rtsp)updateRTSPFromWS(data.rtsp);
+      if(data.config)applyConfig(data.config);
+      refreshAll();
+    }
+    if(event==='rtspStatus')updateRTSPFromWS(data);
+    if(event==='queueUpdate'){S.queue=data.queue||[];refreshAll();}
+    if(event==='trackChange'){S.queue=data.queue||[];S.current=data.currentTrack;Object.assign(S,data.playbackState||{});onTrackChange();refreshAll();}
+    if(event==='configUpdate') {
+      applyConfig(data);
+      // Reset any spinning browser buttons
+      document.querySelectorAll('.browser-btn.loading').forEach(b => {
+        b.classList.remove('loading');
+        const n = b.querySelector('.browser-name');
+        if (n && n.querySelector('.spin-sm')) {
+          const id = b.getAttribute('data-browser-id') || '';
+          const names = {chrome:'Chrome',chromium:'Chromium',firefox:'Firefox',edge:'Edge'};
+          n.textContent = names[id] || id;
+        }
+      });
+    }
+    if(event==='notification'){
+      const isError = data.type === 'error';
+      toast(data.message, data.type || 'info');
+      // On error, show message in info box if settings panel is open
+      if (isError && S.panel === 'settings') {
+        const infoBox = document.querySelector('#auth-pane-browser .info-box');
+        if (infoBox) {
+          infoBox.innerHTML = `<span style="color:var(--red)">❌ ${eh(data.message)}</span><br><br><span style="color:var(--t2);font-size:11.5px">Check the tips below and try again.</span>`;
+        }
+      }
+      // Refresh settings panel if visible
+      if(S.panel==='settings') fetch('/api/settings').then(r=>r.json()).then(applyConfig).catch(()=>{});
+    }
+  };
+  ws.onclose=()=>setTimeout(connectWS,2000);
+  ws.onerror=()=>ws.close();
+}
+
+// ─── Init (replaces previous init block) ─────────────────────────────────────
+(()=>{
+  const h=new Date().getHours();
+  document.getElementById('home-sub').textContent=`Good ${h<12?'morning':h<18?'afternoon':'evening'} — here is today's playback overview`;
+  connectWS();
+  loadHome();
+  setVol(config?.playback?.defaultVolume || 80);
+  renderBarChart();
+  updateStats();
+  refreshRTSP();
+  // Load initial settings
+  fetch('/api/settings').then(r=>r.json()).then(applyConfig).catch(()=>{});
+})();
+function setRtspDisplayMode(mode) {
+  // Highlight selected button
+  document.getElementById('dm-video')?.classList.toggle('on', mode==='video');
+  document.getElementById('dm-karaoke')?.classList.toggle('on', mode==='karaoke');
+  ws&&ws.readyState===1&&ws.send(JSON.stringify({action:'rtspDisplayMode',payload:{mode}}));
+  toast(`Display mode: ${mode==='karaoke'?'Karaoke Lyrics':'Video & Visualiser'}`,'info');
+}
+
+let rtspStatus = { enabled: false, mode: 'idle', rtspUrl: '' };
+
+function updateRTSPFromWS(data) {
+  rtspStatus = { ...rtspStatus, ...data };
+  renderRTSPStatus();
+}
+
+async function refreshRTSP() {
+  try {
+    const d = await (await fetch('/api/rtsp')).json();
+    rtspStatus = d;
+    renderRTSPStatus();
+  } catch {}
+}
+
+function renderRTSPStatus() {
+  const { enabled, mode, rtspUrl } = rtspStatus;
+  const dot   = document.getElementById('rtsp-status-dot');
+  const text  = document.getElementById('rtsp-status-text');
+  const sub   = document.getElementById('rtsp-status-sub');
+  const badge = document.getElementById('rtsp-mode-badge');
+  const modeVal = document.getElementById('rtsp-mode-val');
+  const urlEl = document.getElementById('rtsp-url');
+  const navDot = document.getElementById('rtsp-dot');
+
+  if (!dot) return;
+
+  // Colour the nav dot
+  if (navDot) {
+    navDot.style.background = !enabled ? 'var(--t3)'
+      : mode === 'video'         ? 'var(--green)'
+      : mode === 'visualization' ? 'var(--accent2)'
+      : 'var(--yellow)';
+  }
+
+  if (!enabled) {
+    dot.style.background   = 'var(--t3)';
+    text.textContent       = 'RTSP disabled or starting';
+    sub.textContent        = 'Check that mediamtx and ffmpeg are installed';
+    badge.textContent      = 'Offline';
+    badge.style.background = 'rgba(248,113,113,0.15)';
+    badge.style.color      = 'var(--red)';
+    modeVal.textContent    = 'Off';
+    return;
+  }
+
+  const modeLabel = mode === 'video' ? 'Video' : mode === 'visualization' ? 'Visualisation' : 'Idle';
+  const modeColour = mode === 'video' ? 'var(--green)' : mode === 'visualization' ? 'var(--accent2)' : 'var(--yellow)';
+
+  dot.style.background   = modeColour;
+  badge.textContent      = modeLabel;
+  badge.style.background = mode === 'video' ? 'rgba(74,222,128,0.15)' : mode === 'visualization' ? 'var(--accent-s)' : 'rgba(251,191,36,0.15)';
+  badge.style.color      = modeColour;
+  modeVal.textContent    = modeLabel;
+
+  if (mode === 'video') {
+    text.textContent = '🎬 Streaming music video';
+    sub.textContent  = 'Live video from YouTube';
+  } else if (mode === 'visualization') {
+    text.textContent = '🌈 Streaming colour visualisation';
+    sub.textContent  = 'No video available — plasma animation with track info overlay';
+  } else {
+    text.textContent = '📡 Stream is live (idle)';
+    sub.textContent  = 'Play a song to start video or visualisation';
+  }
+
+  if (urlEl && rtspUrl) urlEl.textContent = rtspUrl;
+
+  // Render Pi commands
+  const cmds = document.getElementById('pi-commands');
+  if (cmds && rtspUrl) {
+    const url = rtspUrl;
+    cmds.innerHTML = [
+      { label: 'mpv  (recommended)', cmd: `mpv "${url}" --fs --no-audio --loop` },
+      { label: 'VLC',                cmd: `cvlc "${url}" --fullscreen --no-audio --loop` },
+      { label: 'omxplayer (Pi 3/4)', cmd: `omxplayer --live "${url}"` },
+    ].map(({ label, cmd }) => `
+      <div style="background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--rsm);padding:10px 14px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:10.5px;color:var(--t3);margin-bottom:3px;font-weight:600">${eh(label)}</div>
+          <code style="font-size:11.5px;color:var(--accent2);font-family:monospace;word-break:break-all">${eh(cmd)}</code>
+        </div>
+        <button class="pbtn" style="font-size:11px;flex-shrink:0" onclick="copyText('${cmd.replace(/'/g,'\\\'')}')">Copy</button>
+      </div>`).join('');
+  }
+}
+
+function copyRTSPUrl() {
+  const url = document.getElementById('rtsp-url')?.textContent;
+  if (url) copyText(url);
+}
+
+function copyText(text) {
+  navigator.clipboard?.writeText(text).then(() => toast('Copied to clipboard', 'success')).catch(() => {});
+}
+
+// Extend WS handler for rtspStatus events
+const _origHandleWSEvent = window._handleWSEvent;
+// Patch into connectWS handler
+const _wsMessagePatch = (e) => {
+  const { event, data } = JSON.parse(e.data);
+  if (event === 'state') {
+    S.queue = data.queue || []; S.current = data.currentTrack;
+    Object.assign(S, data.playbackState || {});
+    if (data.rtsp) updateRTSPFromWS(data.rtsp);
+    refreshAll();
+  }
+  if (event === 'rtspStatus') updateRTSPFromWS(data);
+  if (event === 'queueUpdate') { S.queue = data.queue || []; refreshAll(); }
+  if (event === 'trackChange') { S.queue = data.queue || []; S.current = data.currentTrack; Object.assign(S, data.playbackState || {}); onTrackChange(); refreshAll(); }
+};
+
+</script>
+</body>
+</html>
