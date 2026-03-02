@@ -1,5 +1,8 @@
 /**
- * Streamy — Backend Server v2.1
+ * Streamy — Backend Server v3.0
+ *
+ * Jukebox architecture: all playback happens server-side via mpv.
+ * Remote devices (master + user controllers) are pure web UIs.
  */
 'use strict';
 
@@ -13,7 +16,7 @@ const { exec, spawn } = require('child_process');
 const NodeCache       = require('node-cache');
 const multer          = require('multer');
 
-const { RTSPManager, getLocalIP } = require('./rtsp');
+const { Player, getLocalIP } = require('./player');
 const {
   loadConfig, saveConfig, getCookieArgs,
   testBrowserCookies, testCookieFile, testOAuth2,
@@ -40,24 +43,63 @@ let config = loadConfig();
 let queue  = [];
 let currentTrack  = null;
 let playbackState = {
-  playing: false, position: 0,
+  playing: false, position: 0, duration: 0,
   volume: config.playback.defaultVolume,
   shuffle: false, repeat: 'none',
 };
 
-// ─── RTSP ─────────────────────────────────────────────────────────────────────
-const rtsp = new RTSPManager({
-  rtspPort: parseInt(process.env.RTSP_PORT   || config.rtsp.port   || '8554'),
-  width:    parseInt(process.env.RTSP_WIDTH  || config.rtsp.width  || '1280'),
-  height:   parseInt(process.env.RTSP_HEIGHT || config.rtsp.height || '720'),
-  bitrate:  process.env.RTSP_BITRATE         || config.rtsp.bitrate || '2M',
+// ─── Player ──────────────────────────────────────────────────────────────────
+const player = new Player({
+  volume:      config.playback.defaultVolume,
+  displayMode: config.display?.mode || 'video',
+  width:       parseInt(process.env.DISPLAY_WIDTH  || config.display?.width  || '1920'),
+  height:      parseInt(process.env.DISPLAY_HEIGHT || config.display?.height || '1080'),
 });
-const RTSP_ENABLED = process.env.RTSP_ENABLED !== 'false' && config.rtsp.enabled;
-if (RTSP_ENABLED) {
-  rtsp.init().catch(err => console.warn('[RTSP] Could not start:', err.message));
-  rtsp.on('streamStart', ({ mode, track }) => broadcast('rtspStatus', { ...rtsp.getStatus(), mode, track }));
-  rtsp.on('streamStop',  ()               => broadcast('rtspStatus', rtsp.getStatus()));
-}
+
+// Player events → broadcast to all clients
+player.on('timeUpdate', (position, duration) => {
+  playbackState.position = position;
+  playbackState.duration = duration;
+  broadcast('timeUpdate', { position, duration });
+});
+
+player.on('stateChange', (state) => {
+  playbackState.playing  = state.playing;
+  playbackState.volume   = state.volume;
+  broadcast('playbackState', playbackState);
+});
+
+player.on('trackEnd', () => {
+  if (playbackState.repeat === 'one' && currentTrack) {
+    startPlayback(currentTrack);
+    return;
+  }
+  if (queue.length > 0) {
+    advanceQueue();
+  } else if (playbackState.repeat === 'all' && currentTrack) {
+    startPlayback(currentTrack);
+  } else {
+    currentTrack = null;
+    playbackState.playing  = false;
+    playbackState.position = 0;
+    playbackState.duration = 0;
+    player.stop();
+    broadcast('trackChange', { currentTrack, queue, playbackState });
+  }
+});
+
+player.on('trackError', () => {
+  broadcast('notification', { type: 'info', message: 'Playback error — skipping' });
+  setTimeout(() => {
+    if (queue.length > 0) advanceQueue();
+    else {
+      currentTrack = null;
+      playbackState.playing = false;
+      player.stop();
+      broadcast('trackChange', { currentTrack, queue, playbackState });
+    }
+  }, 1500);
+});
 
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 function broadcast(event, data) {
@@ -66,26 +108,38 @@ function broadcast(event, data) {
 }
 
 wss.on('connection', ws => {
-  ws.send(JSON.stringify({ event: 'state', data: { queue, currentTrack, playbackState, rtsp: rtsp.getStatus(), config: publicConfig() } }));
-  ws.on('message', raw => { try { const { action, payload } = JSON.parse(raw); handleAction(action, payload || {}); } catch {} });
+  ws.send(JSON.stringify({
+    event: 'state',
+    data: { queue, currentTrack, playbackState, config: publicConfig() },
+  }));
+  ws.on('message', raw => {
+    try {
+      const { action, payload } = JSON.parse(raw);
+      handleAction(action, payload || {});
+    } catch {}
+  });
 });
 
 function handleAction(action, p) {
   const map = {
-    play, pause, next, prev, toggleShuffle, cycleRepeat, clearQueue,
+    play:            () => resume(),
+    pause:           () => pause(),
+    next:            () => skipNext(),
+    prev:            () => skipPrev(),
+    toggleShuffle,
+    cycleRepeat,
+    clearQueue,
     setVolume:       () => setVolume(p.volume),
     seek:            () => seek(p.position),
     removeFromQueue: () => removeFromQueue(p.index),
     reorderQueue:    () => reorderQueue(p.from, p.to),
     playNow:         () => playNow(p.track),
-    // Update the karaoke lyric line on the RTSP stream
-    lyricLine:       () => RTSP_ENABLED && rtsp.updateLyricLine(p.line || ''),
-    // Switch RTSP display mode
-    rtspDisplayMode: () => {
-      if (!RTSP_ENABLED) return;
-      config.rtsp.displayMode = p.mode === 'karaoke' ? 'karaoke' : 'video';
+    displayMode:     () => {
+      const mode = p.mode === 'karaoke' ? 'karaoke' : p.mode === 'visualization' ? 'visualization' : 'video';
+      player.setDisplayMode(mode);
+      if (!config.display) config.display = {};
+      config.display.mode = mode;
       saveConfig(config);
-      rtsp.setDisplayMode(config.rtsp.displayMode);
       broadcast('configUpdate', publicConfig());
     },
   };
@@ -101,7 +155,11 @@ function publicConfig() {
       accountName: config.youtube.accountName,
       lastChecked: config.youtube.lastChecked,
     },
-    rtsp:     { ...config.rtsp, displayMode: config.rtsp.displayMode || 'video' },
+    display: {
+      mode:   config.display?.mode || 'video',
+      width:  config.display?.width  || 1920,
+      height: config.display?.height || 1080,
+    },
     playback: config.playback,
   };
 }
@@ -142,29 +200,6 @@ app.get('/api/search', (req, res) => {
   });
 });
 
-// ─── Audio Stream ─────────────────────────────────────────────────────────────
-app.get('/api/stream/:videoId', (req, res) => {
-  const videoId = req.params.videoId;
-
-  // Fetch best audio and pipe directly — browsers natively support webm/opus and m4a/aac
-  const ytdlp = spawn('yt-dlp', [
-    ...getCookieArgs(config),
-    '--no-playlist', '--no-warnings',
-    '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
-    '-o', '-',
-    `https://www.youtube.com/watch?v=${videoId}`,
-  ]);
-
-  res.setHeader('Content-Type', 'audio/webm');
-  res.setHeader('Transfer-Encoding', 'chunked');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-
-  ytdlp.stdout.pipe(res);
-  ytdlp.stderr.on('data', () => {});
-  req.on('close', () => ytdlp.kill());
-  ytdlp.on('error', () => { if (!res.headersSent) res.status(500).end(); });
-});
-
 // ─── Lyrics ───────────────────────────────────────────────────────────────────
 app.get('/api/lyrics', async (req, res) => {
   const { title, artist } = req.query;
@@ -188,25 +223,33 @@ app.get('/api/lyrics', async (req, res) => {
 });
 
 // ─── Queue REST ───────────────────────────────────────────────────────────────
-app.get('/api/queue',           (req, res) => res.json({ queue, currentTrack, playbackState }));
-app.post('/api/queue/add',      (req, res) => {
+app.get('/api/queue', (req, res) => res.json({ queue, currentTrack, playbackState }));
+
+app.post('/api/queue/add', (req, res) => {
   const t = req.body;
   if (!t?.videoId) return res.status(400).json({ error: 'Invalid' });
   queue.push({ ...t, queueId: Date.now() + Math.random() });
   broadcast('queueUpdate', { queue });
-  res.json({ success: true });
+
+  // Auto-start if nothing is currently playing
+  if (!currentTrack && !playbackState.playing) {
+    advanceQueue();
+  }
+
+  res.json({ success: true, queueLength: queue.length });
 });
-app.post('/api/queue/playnow',  (req, res) => { playNow(req.body); res.json({ success: true }); });
+
+app.post('/api/queue/playnow', (req, res) => { playNow(req.body); res.json({ success: true }); });
 app.delete('/api/queue/:index', (req, res) => { removeFromQueue(parseInt(req.params.index)); res.json({ success: true }); });
 
-// ─── RTSP API ─────────────────────────────────────────────────────────────────
-app.get('/api/rtsp', (req, res) => res.json(rtsp.getStatus()));
+// ─── Player status ───────────────────────────────────────────────────────────
+app.get('/api/player', (req, res) => res.json(player.getStatus()));
 
 // ─── Settings API ─────────────────────────────────────────────────────────────
 app.get('/api/settings', (req, res) => res.json(publicConfig()));
 
 app.patch('/api/settings', (req, res) => {
-  for (const key of ['playback', 'rtsp']) {
+  for (const key of ['playback', 'display']) {
     if (req.body[key]) config[key] = { ...config[key], ...req.body[key] };
   }
   saveConfig(config);
@@ -214,12 +257,10 @@ app.patch('/api/settings', (req, res) => {
   res.json({ success: true, config: publicConfig() });
 });
 
-// List detected browsers
 app.get('/api/settings/youtube/browsers', async (req, res) => {
   res.json({ browsers: await detectBrowsers() });
 });
 
-// Connect via browser cookie extraction (async result via WebSocket)
 app.post('/api/settings/youtube/connect-browser', async (req, res) => {
   const { browser } = req.body;
   if (!browser) return res.status(400).json({ error: 'browser required' });
@@ -229,14 +270,14 @@ app.post('/api/settings/youtube/connect-browser', async (req, res) => {
   if (result.success) {
     config.youtube = { authMethod: 'browser-cookies', browser, loggedIn: true, accountName: result.accountName, lastChecked: new Date().toISOString() };
     saveConfig(config); cache.flushAll();
+    player.setCookieArgs(getCookieArgs(config));
     broadcast('configUpdate', publicConfig());
-    broadcast('notification', { type: 'success', message: `✅ Connected as ${result.accountName}` });
+    broadcast('notification', { type: 'success', message: `Connected as ${result.accountName}` });
   } else {
     broadcast('notification', { type: 'error', message: result.error });
   }
 });
 
-// Upload cookies.txt (Netscape format)
 app.post('/api/settings/youtube/upload-cookies', upload.single('cookies'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file received' });
   fs.renameSync(req.file.path, COOKIES_PATH);
@@ -245,6 +286,7 @@ app.post('/api/settings/youtube/upload-cookies', upload.single('cookies'), async
   if (result.success) {
     config.youtube = { authMethod: 'cookie-file', browser: config.youtube.browser, loggedIn: true, accountName: result.accountName, lastChecked: new Date().toISOString() };
     saveConfig(config); cache.flushAll();
+    player.setCookieArgs(getCookieArgs(config));
     broadcast('configUpdate', publicConfig());
     res.json({ success: true, accountName: result.accountName });
   } else {
@@ -253,17 +295,16 @@ app.post('/api/settings/youtube/upload-cookies', upload.single('cookies'), async
   }
 });
 
-// Disconnect account
 app.post('/api/settings/youtube/disconnect', (req, res) => {
   config.youtube = { authMethod: 'none', browser: 'chrome', loggedIn: false, accountName: '', lastChecked: null };
   saveConfig(config);
   try { fs.unlinkSync(COOKIES_PATH); } catch {}
   cache.flushAll();
+  player.setCookieArgs([]);
   broadcast('configUpdate', publicConfig());
   res.json({ success: true });
 });
 
-// Re-test current auth
 app.post('/api/settings/youtube/test', async (req, res) => {
   let result;
   if (config.youtube.authMethod === 'browser-cookies') {
@@ -271,10 +312,9 @@ app.post('/api/settings/youtube/test', async (req, res) => {
   } else if (config.youtube.authMethod === 'cookie-file') {
     result = await testCookieFile();
   } else if (config.youtube.authMethod === 'oauth2') {
-    // For oauth2, just verify yt-dlp can fetch with the cached token
     result = await testOAuth2();
   } else {
-    return res.json({ success: false, error: 'No auth method configured — connect a YouTube account first' });
+    return res.json({ success: false, error: 'No auth method configured' });
   }
 
   config.youtube.loggedIn    = result.success;
@@ -285,15 +325,10 @@ app.post('/api/settings/youtube/test', async (req, res) => {
   res.json(result);
 });
 
-// OAuth2 device-code flow
 app.post('/api/settings/youtube/oauth2/start', async (req, res) => {
   try {
     const result = await startOAuth2Flow();
-    if (result.success) {
-      res.json({ success: true, url: result.url, code: result.code });
-    } else {
-      res.json({ success: false, error: result.error });
-    }
+    res.json(result.success ? { success: true, url: result.url, code: result.code } : { success: false, error: result.error });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -303,18 +338,15 @@ app.get('/api/settings/youtube/oauth2/status', (req, res) => {
   const state = getOAuthState();
   if (state.status === 'authorized') {
     config.youtube = {
-      authMethod:  'oauth2',
-      browser:     config.youtube.browser,
-      loggedIn:    true,
-      accountName: state.accountName || 'YouTube Account',
+      authMethod: 'oauth2', browser: config.youtube.browser,
+      loggedIn: true, accountName: state.accountName || 'YouTube Account',
       lastChecked: new Date().toISOString(),
     };
-    saveConfig(config);
-    cache.flushAll();
+    saveConfig(config); cache.flushAll();
+    player.setCookieArgs(getCookieArgs(config));
     broadcast('configUpdate', publicConfig());
     res.json({ status: 'authorized', accountName: config.youtube.accountName });
   } else if (state.status === 'pending') {
-    // Include code+url so client can show them as soon as they're available
     res.json({ status: 'pending', code: state.code || null, url: state.url || null });
   } else {
     res.json({ status: state.status, error: state.error });
@@ -326,7 +358,6 @@ app.post('/api/settings/youtube/oauth2/cancel', (req, res) => {
   res.json({ success: true });
 });
 
-// Fetch liked songs from YouTube Music
 app.get('/api/settings/youtube/liked', async (req, res) => {
   try { res.json({ tracks: await fetchLikedSongs(config) }); }
   catch (e) { res.status(500).json({ error: e.message }); }
@@ -336,42 +367,134 @@ app.get('/api/settings/youtube/liked', async (req, res) => {
 app.get('/api/health', (req, res) => {
   exec('yt-dlp --version', (e1, v1) =>
     exec('ffmpeg -version 2>&1 | head -1', (e2, v2) =>
-      res.json({ status: 'ok', ytdlp: e1?'not found':v1.trim(), ffmpeg: e2?'not found':v2.trim(), rtsp: rtsp.getStatus(), youtube: { loggedIn: config.youtube.loggedIn, method: config.youtube.authMethod } })
+      exec('mpv --version 2>&1 | head -1', (e3, v3) =>
+        res.json({
+          status: 'ok',
+          ytdlp:   e1 ? 'not found' : v1.trim(),
+          ffmpeg:  e2 ? 'not found' : v2.trim(),
+          mpv:     e3 ? 'not found' : v3.trim(),
+          player:  player.getStatus(),
+          youtube: { loggedIn: config.youtube.loggedIn, method: config.youtube.authMethod },
+        })
+      )
     )
   );
 });
 
+// ─── Routes ───────────────────────────────────────────────────────────────────
+app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, '../public/remote.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 
 // ─── Playback helpers ─────────────────────────────────────────────────────────
-function play()  { playbackState.playing = true;  broadcast('playbackState', playbackState); }
-function pause() { playbackState.playing = false; broadcast('playbackState', playbackState); }
-function next()  {
-  if (playbackState.shuffle && queue.length > 1) currentTrack = queue.splice(Math.floor(Math.random() * queue.length), 1)[0];
-  else if (queue.length > 0) currentTrack = queue.shift();
-  else { currentTrack = null; playbackState.playing = false; if (RTSP_ENABLED) rtsp.stopStream(); }
-  if (currentTrack && RTSP_ENABLED) rtsp.streamTrack(currentTrack);
+
+function startPlayback(track) {
+  if (!track) return;
+  currentTrack = track;
+  playbackState.playing  = true;
+  playbackState.position = 0;
+
+  player.setCookieArgs(getCookieArgs(config));
+  player.playTrack(track);
+
   broadcast('trackChange', { currentTrack, queue, playbackState });
+  fetchAndLoadLyrics(track);
 }
-function prev()          { broadcast('trackChange', { currentTrack, queue, playbackState }); }
-function setVolume(v)    { playbackState.volume = Math.max(0, Math.min(100, v)); broadcast('playbackState', playbackState); }
-function seek(p)         { playbackState.position = p; broadcast('playbackState', playbackState); }
-function toggleShuffle() { playbackState.shuffle = !playbackState.shuffle; broadcast('playbackState', playbackState); }
-function cycleRepeat()   { const m=['none','one','all']; playbackState.repeat=m[(m.indexOf(playbackState.repeat)+1)%3]; broadcast('playbackState',playbackState); }
-function removeFromQueue(i) { if (i>=0&&i<queue.length) queue.splice(i,1); broadcast('queueUpdate',{queue}); }
-function reorderQueue(f,t)  { if(f>=0&&t>=0&&f<queue.length&&t<queue.length){const[x]=queue.splice(f,1);queue.splice(t,0,x);} broadcast('queueUpdate',{queue}); }
-function playNow(track)     { if (!track) return; currentTrack=track; playbackState.playing=true; if(RTSP_ENABLED)rtsp.streamTrack(track); broadcast('trackChange',{currentTrack,queue,playbackState}); }
-function clearQueue()       { queue=[]; broadcast('queueUpdate',{queue}); }
+
+async function fetchAndLoadLyrics(track) {
+  try {
+    const axios = require('axios');
+    const r = await axios.get(`https://lrclib.net/api/search?q=${encodeURIComponent(`${track.artist} ${track.title}`)}`, { timeout: 5000 });
+    if (r.data?.length && r.data[0].syncedLyrics) {
+      player.loadLyrics(r.data[0].syncedLyrics);
+    }
+  } catch {}
+}
+
+function advanceQueue() {
+  if (playbackState.shuffle && queue.length > 1) {
+    currentTrack = queue.splice(Math.floor(Math.random() * queue.length), 1)[0];
+  } else if (queue.length > 0) {
+    currentTrack = queue.shift();
+  } else {
+    return;
+  }
+  startPlayback(currentTrack);
+}
+
+function resume()  { player.resume(); playbackState.playing = true;  broadcast('playbackState', playbackState); }
+function pause()   { player.pause();  playbackState.playing = false; broadcast('playbackState', playbackState); }
+
+function skipNext() {
+  if (queue.length > 0) advanceQueue();
+  else {
+    currentTrack = null;
+    playbackState.playing = false;
+    player.stop();
+    broadcast('trackChange', { currentTrack, queue, playbackState });
+  }
+}
+
+function skipPrev() {
+  if (currentTrack) startPlayback(currentTrack);
+}
+
+function setVolume(v) {
+  playbackState.volume = Math.max(0, Math.min(100, v));
+  player.setVolume(playbackState.volume);
+  broadcast('playbackState', playbackState);
+}
+
+function seek(p) {
+  playbackState.position = p;
+  player.seek(p);
+}
+
+function toggleShuffle() {
+  playbackState.shuffle = !playbackState.shuffle;
+  broadcast('playbackState', playbackState);
+}
+
+function cycleRepeat() {
+  const m = ['none', 'one', 'all'];
+  playbackState.repeat = m[(m.indexOf(playbackState.repeat) + 1) % 3];
+  broadcast('playbackState', playbackState);
+}
+
+function removeFromQueue(i) {
+  if (i >= 0 && i < queue.length) queue.splice(i, 1);
+  broadcast('queueUpdate', { queue });
+}
+
+function reorderQueue(f, t) {
+  if (f >= 0 && t >= 0 && f < queue.length && t < queue.length) {
+    const [x] = queue.splice(f, 1);
+    queue.splice(t, 0, x);
+  }
+  broadcast('queueUpdate', { queue });
+}
+
+function playNow(track) {
+  if (!track) return;
+  startPlayback(track);
+}
+
+function clearQueue() {
+  queue = [];
+  broadcast('queueUpdate', { queue });
+}
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000');
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
   const ip = getLocalIP();
   console.log(`\n🎵  Streamy  →  http://${ip}:${PORT}`);
+  console.log(`    Remote:     http://${ip}:${PORT}/remote`);
   if (config.youtube.loggedIn) console.log(`    YouTube:     ✅ Connected as ${config.youtube.accountName}`);
   else                         console.log(`    YouTube:     Not connected — open Settings in the UI`);
-  console.log('');
+
+  player.setCookieArgs(getCookieArgs(config));
+  await player.init(PORT);
 });
 
-process.on('SIGTERM', () => { rtsp.destroy(); process.exit(0); });
-process.on('SIGINT',  () => { rtsp.destroy(); process.exit(0); });
+process.on('SIGTERM', () => { player.destroy(); process.exit(0); });
+process.on('SIGINT',  () => { player.destroy(); process.exit(0); });
